@@ -1117,7 +1117,7 @@ static BOOL updateEarlyClientCaps(rdpSettings* settings, UINT32 earlyCapabilityF
 }
 
 static BOOL updateEarlyServerCaps(rdpSettings* settings, UINT32 earlyCapabilityFlags,
-                                  UINT32 connectionType)
+                                  WINPR_ATTR_UNUSED UINT32 connectionType)
 {
 	WINPR_ASSERT(settings);
 
@@ -1210,7 +1210,6 @@ BOOL gcc_read_client_core_data(wStream* s, rdpMcs* mcs)
 
 	do
 	{
-		UINT16 clientProductIdLen = 0;
 		if (blockLength < 2)
 			break;
 
@@ -1220,14 +1219,36 @@ BOOL gcc_read_client_core_data(wStream* s, rdpMcs* mcs)
 		if (blockLength < 2)
 			break;
 
-		Stream_Read_UINT16(s, clientProductIdLen); /* clientProductID (2 bytes) */
+		const UINT16 clientProductId = Stream_Get_UINT16(s); /* clientProductID (2 bytes) */
 		blockLength -= 2;
+
+		/* [MS-RDPBCGR] 2.2.1.3.2 Client Core Data (TS_UD_CS_CORE)::clientProductId (optional)
+		 * should be initialized to 1
+		 */
+		if (clientProductId != 1)
+		{
+			WLog_WARN(TAG,
+			          "[MS-RDPBCGR] 2.2.1.3.2 Client Core Data (TS_UD_CS_CORE)::clientProductId "
+			          "(optional) expected 1, got %" PRIu32,
+			          clientProductId);
+		}
 
 		if (blockLength < 4)
 			break;
 
-		Stream_Seek_UINT32(s); /* serialNumber (4 bytes) */
+		const UINT32 serialNumber = Stream_Get_UINT32(s); /* serialNumber (4 bytes) */
 		blockLength -= 4;
+
+		/* [MS-RDPBCGR] 2.2.1.3.2 Client Core Data (TS_UD_CS_CORE)::serialNumber (optional)
+		 * should be initialized to 0
+		 */
+		if (serialNumber != 0)
+		{
+			WLog_WARN(TAG,
+			          "[MS-RDPBCGR] 2.2.1.3.2 Client Core Data (TS_UD_CS_CORE)::serialNumber "
+			          "(optional) expected 0, got %" PRIu32,
+			          serialNumber);
+		}
 
 		if (blockLength < 2)
 			break;
@@ -1925,16 +1946,14 @@ BOOL gcc_write_client_network_data(wStream* s, const rdpMcs* mcs)
 BOOL gcc_read_server_network_data(wStream* s, rdpMcs* mcs)
 {
 	UINT16 channelId = 0;
-	UINT16 MCSChannelId = 0;
-	UINT16 channelCount = 0;
 	UINT32 parsedChannelCount = 0;
 	WINPR_ASSERT(s);
 	WINPR_ASSERT(mcs);
 	if (!Stream_CheckAndLogRequiredLength(TAG, s, 4))
 		return FALSE;
 
-	Stream_Read_UINT16(s, MCSChannelId); /* MCSChannelId */
-	Stream_Read_UINT16(s, channelCount); /* channelCount */
+	mcs->IOChannelId = Stream_Get_UINT16(s);            /* MCSChannelId */
+	const uint16_t channelCount = Stream_Get_UINT16(s); /* channelCount */
 	parsedChannelCount = channelCount;
 
 	if (channelCount != mcs->channelCount)
@@ -2138,22 +2157,26 @@ BOOL gcc_read_client_monitor_data(wStream* s, rdpMcs* mcs)
 
 	for (UINT32 index = 0; index < monitorCount; index++)
 	{
-		INT32 left = 0;
-		INT32 top = 0;
-		INT32 right = 0;
-		INT32 bottom = 0;
-		INT32 flags = 0;
 		rdpMonitor* current = &settings->MonitorDefArray[index];
 
-		Stream_Read_INT32(s, left);   /* left */
-		Stream_Read_INT32(s, top);    /* top */
-		Stream_Read_INT32(s, right);  /* right */
-		Stream_Read_INT32(s, bottom); /* bottom */
-		Stream_Read_INT32(s, flags);  /* flags */
+		const INT32 left = Stream_Get_INT32(s);    /* left */
+		const INT32 top = Stream_Get_INT32(s);     /* top */
+		const INT32 right = Stream_Get_INT32(s);   /* right */
+		const INT32 bottom = Stream_Get_INT32(s);  /* bottom */
+		const UINT32 flags = Stream_Get_UINT32(s); /* flags */
+
+		if ((left > right) || (bottom > top))
+			return FALSE;
+
+		const INT64 w = right - left;
+		const INT64 h = bottom - top;
+		if ((w >= INT32_MAX) || (h >= INT32_MAX) || (w < 0) || (h < 0))
+			return FALSE;
+
 		current->x = left;
 		current->y = top;
-		current->width = right - left + 1;
-		current->height = bottom - top + 1;
+		current->width = WINPR_ASSERTING_INT_CAST(int32_t, w + 1);
+		current->height = WINPR_ASSERTING_INT_CAST(int32_t, h + 1);
 		current->is_primary = (flags & MONITOR_PRIMARY) ? TRUE : FALSE;
 	}
 
@@ -2205,19 +2228,19 @@ BOOL gcc_write_client_monitor_data(wStream* s, const rdpMcs* mcs)
 		for (UINT32 i = 0; i < settings->MonitorCount; i++)
 		{
 			const rdpMonitor* current = &settings->MonitorDefArray[i];
-			const UINT32 left = WINPR_ASSERTING_INT_CAST(uint32_t, current->x - baseX);
-			const UINT32 top = WINPR_ASSERTING_INT_CAST(uint32_t, current->y - baseY);
-			const UINT32 right = left + WINPR_ASSERTING_INT_CAST(uint32_t, current->width - 1);
-			const UINT32 bottom = top + WINPR_ASSERTING_INT_CAST(uint32_t, current->height - 1);
+			const INT32 left = current->x - baseX;
+			const INT32 top = current->y - baseY;
+			const INT32 right = left + current->width - 1;
+			const INT32 bottom = top + current->height - 1;
 			const UINT32 flags = current->is_primary ? MONITOR_PRIMARY : 0;
 			WLog_DBG(TAG,
-			         "Monitor[%" PRIu32 "]: top=%" PRIu32 ", left=%" PRIu32 ", bottom=%" PRIu32
-			         ", right=%" PRIu32 ", flags=%" PRIu32,
+			         "Monitor[%" PRIu32 "]: top=%" PRId32 ", left=%" PRId32 ", bottom=%" PRId32
+			         ", right=%" PRId32 ", flags=%" PRIu32,
 			         i, top, left, bottom, right, flags);
-			Stream_Write_UINT32(s, left);   /* left */
-			Stream_Write_UINT32(s, top);    /* top */
-			Stream_Write_UINT32(s, right);  /* right */
-			Stream_Write_UINT32(s, bottom); /* bottom */
+			Stream_Write_INT32(s, left);    /* left */
+			Stream_Write_INT32(s, top);     /* top */
+			Stream_Write_INT32(s, right);   /* right */
+			Stream_Write_INT32(s, bottom);  /* bottom */
 			Stream_Write_UINT32(s, flags);  /* flags */
 		}
 	}

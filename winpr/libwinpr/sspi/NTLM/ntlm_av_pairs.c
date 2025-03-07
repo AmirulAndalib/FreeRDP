@@ -34,8 +34,10 @@
 
 #include "ntlm_av_pairs.h"
 
+#if defined(WITH_DEBUG_NTLM)
 #include "../../log.h"
 #define TAG WINPR_TAG("sspi.NTLM")
+#endif
 
 static BOOL ntlm_av_pair_get_next_offset(const NTLM_AV_PAIR* pAvPair, size_t size, size_t* pOffset);
 
@@ -49,6 +51,7 @@ static BOOL ntlm_av_pair_check_data(const NTLM_AV_PAIR* pAvPair, size_t cbAvPair
 	return cbAvPair >= offset;
 }
 
+#ifdef WITH_DEBUG_NTLM
 static const char* get_av_pair_string(UINT16 pair)
 {
 	switch (pair)
@@ -79,6 +82,7 @@ static const char* get_av_pair_string(UINT16 pair)
 			return "UNKNOWN";
 	}
 }
+#endif
 
 static BOOL ntlm_av_pair_check(const NTLM_AV_PAIR* pAvPair, size_t cbAvPair);
 static NTLM_AV_PAIR* ntlm_av_pair_next(NTLM_AV_PAIR* pAvPairList, size_t* pcbAvPairList);
@@ -323,7 +327,8 @@ static char* get_name(COMPUTER_NAME_FORMAT type)
 	return computerName;
 }
 
-static int ntlm_get_target_computer_name(PUNICODE_STRING pName, COMPUTER_NAME_FORMAT type)
+static int ntlm_get_target_computer_name(PUNICODE_STRING pName,
+                                         WINPR_ATTR_UNUSED COMPUTER_NAME_FORMAT type)
 {
 	int status = -1;
 

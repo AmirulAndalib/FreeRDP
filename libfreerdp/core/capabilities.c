@@ -792,7 +792,8 @@ static BOOL rdp_print_order_capability_set(wStream* s)
 }
 #endif
 
-static BOOL rdp_apply_bitmap_cache_capability_set(rdpSettings* settings, const rdpSettings* src)
+static BOOL rdp_apply_bitmap_cache_capability_set(WINPR_ATTR_UNUSED rdpSettings* settings,
+                                                  WINPR_ATTR_UNUSED const rdpSettings* src)
 {
 	WINPR_ASSERT(settings);
 	WINPR_ASSERT(src);
@@ -913,7 +914,8 @@ static BOOL rdp_print_bitmap_cache_capability_set(wStream* s)
 }
 #endif
 
-static BOOL rdp_apply_control_capability_set(rdpSettings* settings, const rdpSettings* src)
+static BOOL rdp_apply_control_capability_set(WINPR_ATTR_UNUSED rdpSettings* settings,
+                                             WINPR_ATTR_UNUSED const rdpSettings* src)
 {
 	WINPR_ASSERT(settings);
 	WINPR_ASSERT(src);
@@ -982,8 +984,8 @@ static BOOL rdp_print_control_capability_set(wStream* s)
 }
 #endif
 
-static BOOL rdp_apply_window_activation_capability_set(rdpSettings* settings,
-                                                       const rdpSettings* src)
+static BOOL rdp_apply_window_activation_capability_set(WINPR_ATTR_UNUSED rdpSettings* settings,
+                                                       WINPR_ATTR_UNUSED const rdpSettings* src)
 {
 	WINPR_ASSERT(settings);
 	WINPR_ASSERT(src);
@@ -1164,7 +1166,8 @@ static BOOL rdp_print_pointer_capability_set(wStream* s)
 }
 #endif
 
-static BOOL rdp_apply_share_capability_set(rdpSettings* settings, const rdpSettings* src)
+static BOOL rdp_apply_share_capability_set(WINPR_ATTR_UNUSED rdpSettings* settings,
+                                           WINPR_ATTR_UNUSED const rdpSettings* src)
 {
 	WINPR_ASSERT(settings);
 	WINPR_ASSERT(src);
@@ -1227,7 +1230,8 @@ static BOOL rdp_print_share_capability_set(wStream* s)
 }
 #endif
 
-static BOOL rdp_apply_color_cache_capability_set(rdpSettings* settings, const rdpSettings* src)
+static BOOL rdp_apply_color_cache_capability_set(WINPR_ATTR_UNUSED rdpSettings* settings,
+                                                 WINPR_ATTR_UNUSED const rdpSettings* src)
 {
 	WINPR_ASSERT(settings);
 	WINPR_ASSERT(src);
@@ -1531,7 +1535,8 @@ static BOOL rdp_print_input_capability_set(wStream* s)
 }
 #endif
 
-static BOOL rdp_apply_font_capability_set(rdpSettings* settings, const rdpSettings* src)
+static BOOL rdp_apply_font_capability_set(WINPR_ATTR_UNUSED rdpSettings* settings,
+                                          WINPR_ATTR_UNUSED const rdpSettings* src)
 {
 	WINPR_ASSERT(settings);
 	WINPR_ASSERT(src);
@@ -2307,33 +2312,6 @@ static BOOL rdp_write_draw_nine_grid_cache_capability_set(wStream* s, const rdpS
 	return rdp_capability_set_finish(s, header, CAPSET_TYPE_DRAW_NINE_GRID_CACHE);
 }
 
-static void rdp_write_gdiplus_cache_entries(wStream* s, UINT16 gce, UINT16 bce, UINT16 pce,
-                                            UINT16 ice, UINT16 ace)
-{
-	Stream_Write_UINT16(s, gce); /* gdipGraphicsCacheEntries (2 bytes) */
-	Stream_Write_UINT16(s, bce); /* gdipBrushCacheEntries (2 bytes) */
-	Stream_Write_UINT16(s, pce); /* gdipPenCacheEntries (2 bytes) */
-	Stream_Write_UINT16(s, ice); /* gdipImageCacheEntries (2 bytes) */
-	Stream_Write_UINT16(s, ace); /* gdipImageAttributesCacheEntries (2 bytes) */
-}
-
-static void rdp_write_gdiplus_cache_chunk_size(wStream* s, UINT16 gccs, UINT16 obccs, UINT16 opccs,
-                                               UINT16 oiaccs)
-{
-	Stream_Write_UINT16(s, gccs);   /* gdipGraphicsCacheChunkSize (2 bytes) */
-	Stream_Write_UINT16(s, obccs);  /* gdipObjectBrushCacheChunkSize (2 bytes) */
-	Stream_Write_UINT16(s, opccs);  /* gdipObjectPenCacheChunkSize (2 bytes) */
-	Stream_Write_UINT16(s, oiaccs); /* gdipObjectImageAttributesCacheChunkSize (2 bytes) */
-}
-
-static void rdp_write_gdiplus_image_cache_properties(wStream* s, UINT16 oiccs, UINT16 oicts,
-                                                     UINT16 oicms)
-{
-	Stream_Write_UINT16(s, oiccs); /* gdipObjectImageCacheChunkSize (2 bytes) */
-	Stream_Write_UINT16(s, oicts); /* gdipObjectImageCacheTotalSize (2 bytes) */
-	Stream_Write_UINT16(s, oicms); /* gdipObjectImageCacheMaxSize (2 bytes) */
-}
-
 #ifdef WITH_DEBUG_CAPABILITIES
 static BOOL rdp_print_draw_nine_grid_cache_capability_set(wStream* s)
 {
@@ -2395,33 +2373,6 @@ static BOOL rdp_read_draw_gdiplus_cache_capability_set(wStream* s, rdpSettings* 
 	    (drawGdiplusCacheLevel & DRAW_GDIPLUS_CACHE_LEVEL_ONE) ? TRUE : FALSE;
 
 	return TRUE;
-}
-
-/*
- * Write GDI+ cache capability set.
- * msdn{cc241566}
- */
-
-static BOOL rdp_write_draw_gdiplus_cache_capability_set(wStream* s, const rdpSettings* settings)
-{
-	WINPR_ASSERT(settings);
-	if (!Stream_EnsureRemainingCapacity(s, 64))
-		return FALSE;
-
-	const size_t header = rdp_capability_set_start(s);
-	const UINT32 drawGDIPlusSupportLevel =
-	    (settings->DrawGdiPlusEnabled) ? DRAW_GDIPLUS_SUPPORTED : DRAW_GDIPLUS_DEFAULT;
-	const UINT32 drawGdiplusCacheLevel = (settings->DrawGdiPlusEnabled)
-	                                         ? DRAW_GDIPLUS_CACHE_LEVEL_ONE
-	                                         : DRAW_GDIPLUS_CACHE_LEVEL_DEFAULT;
-	Stream_Write_UINT32(s, drawGDIPlusSupportLevel);     /* drawGDIPlusSupportLevel (4 bytes) */
-	Stream_Write_UINT32(s, 0);                           /* GdipVersion (4 bytes) */
-	Stream_Write_UINT32(s, drawGdiplusCacheLevel);       /* drawGdiplusCacheLevel (4 bytes) */
-	rdp_write_gdiplus_cache_entries(s, 10, 5, 5, 10, 2); /* GdipCacheEntries (10 bytes) */
-	rdp_write_gdiplus_cache_chunk_size(s, 512, 2048, 1024, 64); /* GdipCacheChunkSize (8 bytes) */
-	rdp_write_gdiplus_image_cache_properties(s, 4096, 256,
-	                                         128); /* GdipImageCacheProperties (6 bytes) */
-	return rdp_capability_set_finish(s, header, CAPSET_TYPE_DRAW_GDI_PLUS);
 }
 
 #ifdef WITH_DEBUG_CAPABILITIES
@@ -3562,6 +3513,7 @@ static BOOL rdp_write_rfx_server_capability_container(wStream* s, const rdpSetti
 	return TRUE;
 }
 
+#if defined(WITH_JPEG)
 static BOOL rdp_write_jpeg_server_capability_container(wStream* s, const rdpSettings* settings)
 {
 	WINPR_UNUSED(settings);
@@ -3574,6 +3526,7 @@ static BOOL rdp_write_jpeg_server_capability_container(wStream* s, const rdpSett
 	Stream_Write_UINT8(s, 75);
 	return TRUE;
 }
+#endif
 
 /*
  * Write NSCODEC Server Capability Container.
@@ -4540,7 +4493,9 @@ BOOL rdp_recv_demand_active(rdpRdp* rdp, wStream* s, UINT16 pduSource, UINT16 le
 	if (!Stream_CheckAndLogRequiredLength(TAG, s, 4))
 		return FALSE;
 
-	const UINT32 SessionId = Stream_Get_UINT32(s); /* SessionId */
+	/* [MS-RDPBCGR] 2.2.1.13.1.1 Demand Active PDU Data (TS_DEMAND_ACTIVE_PDU)::sessionId
+	 * is ignored by client */
+	Stream_Seek_UINT32(s); /* SessionId */
 
 	{
 		rdp_secondary_update_internal* secondary = secondary_update_cast(rdp->update->secondary);

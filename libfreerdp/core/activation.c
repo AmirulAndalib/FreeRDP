@@ -211,7 +211,6 @@ BOOL rdp_send_server_control_granted_pdu(rdpRdp* rdp)
 
 BOOL rdp_send_client_control_pdu(rdpRdp* rdp, UINT16 action)
 {
-	wStream* s = rdp_data_pdu_init(rdp);
 	UINT16 GrantId = 0;
 	UINT16 ControlId = 0;
 
@@ -227,6 +226,7 @@ BOOL rdp_send_client_control_pdu(rdpRdp* rdp, UINT16 action)
 			return FALSE;
 	}
 
+	wStream* s = rdp_data_pdu_init(rdp);
 	if (!s)
 		return FALSE;
 	if (!rdp_write_client_control_pdu(s, action, GrantId, ControlId))
@@ -751,18 +751,8 @@ BOOL rdp_server_accept_client_control_pdu(rdpRdp* rdp, wStream* s)
 
 BOOL rdp_server_accept_client_font_list_pdu(rdpRdp* rdp, wStream* s)
 {
-	rdpSettings* settings = NULL;
-	freerdp_peer* peer = NULL;
-
 	WINPR_ASSERT(rdp);
 	WINPR_ASSERT(s);
-
-	settings = rdp->settings;
-	WINPR_ASSERT(settings);
-
-	WINPR_ASSERT(rdp->context);
-	peer = rdp->context->peer;
-	WINPR_ASSERT(peer);
 
 	if (!rdp_recv_client_font_list_pdu(s))
 		return FALSE;

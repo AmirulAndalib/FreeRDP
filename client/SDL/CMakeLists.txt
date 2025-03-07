@@ -28,11 +28,8 @@ project(sdl-freerdp LANGUAGES CXX VERSION ${FREERDP_DEFAULT_PROJECT_VERSION})
 
 message("project ${PROJECT_NAME} is using version ${PROJECT_VERSION}")
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS ON)
-
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/)
+include(ProjectCXXStandard)
 include(CommonConfigOptions)
 
 include(ConfigureFreeRDP)
@@ -60,15 +57,18 @@ endif()
 
 include(CMakeDependentOption)
 
-# Require 2.0.20 for ubuntu 22.04.
-# older versions do not have the SDL2::SDL2 et al targets
-find_package(SDL2 2.0.20)
 find_package(SDL3)
 
 cmake_dependent_option(WITH_CLIENT_SDL_VERSIONED "append sdl version to client binaries" OFF WITH_CLIENT_SDL OFF)
-cmake_dependent_option(
-  WITH_CLIENT_SDL2 "[experimental] build experimental SDL2 client" ${SDL2_FOUND} WITH_CLIENT_SDL OFF
-)
+if(NOT WITHOUT_FREERDP_3x_DEPRECATED)
+  # Require 2.0.20 for ubuntu 22.04.
+  # older versions do not have the SDL2::SDL2 et al targets
+  find_package(SDL2 2.0.20)
+  cmake_dependent_option(
+    WITH_CLIENT_SDL2 "[deprecated,experimental] build deprecated,experimental SDL2 client" ${SDL2_FOUND}
+    WITH_CLIENT_SDL OFF
+  )
+endif()
 cmake_dependent_option(
   WITH_CLIENT_SDL3 "[experimental] build experimental SDL3 client" ${SDL3_FOUND} WITH_CLIENT_SDL OFF
 )
@@ -87,11 +87,13 @@ if((WITH_CLIENT_SDL2 AND SDL2_FOUND) OR (WITH_CLIENT_SDL3 AND SDL3_FOUND))
   include_directories(common)
 endif()
 
-if(WITH_CLIENT_SDL2)
-  if(SDL2_FOUND)
-    add_subdirectory(SDL2)
-  else()
-    message(WARNING "SDL2 requested but not found, continuing build without SDL2 client")
+if(NOT WITHOUT_FREERDP_3x_DEPRECATED)
+  if(WITH_CLIENT_SDL2)
+    if(SDL2_FOUND)
+      add_subdirectory(SDL2)
+    else()
+      message(WARNING "SDL2 requested but not found, continuing build without SDL2 client")
+    endif()
   endif()
 endif()
 

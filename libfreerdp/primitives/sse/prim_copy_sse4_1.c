@@ -23,14 +23,13 @@
 #include <freerdp/log.h>
 
 #include "prim_internal.h"
+#include "prim_avxsse.h"
 #include "prim_copy.h"
 #include "../codec/color.h"
 
 #include <freerdp/codec/color.h>
 
 #if defined(SSE_AVX_INTRINSICS_ENABLED)
-#define TAG FREERDP_TAG("primitives.copy")
-
 #include <emmintrin.h>
 #include <immintrin.h>
 
@@ -50,8 +49,6 @@ static INLINE pstatus_t sse_image_copy_bgr24_bgrx32(BYTE* WINPR_RESTRICT pDstDat
 	const __m128i smask = mm_set_epu32(0xff0b0a09, 0xff080706, 0xff050403, 0xff020100);
 	const UINT32 rem = nWidth % 4;
 
-	const size_t align = nSrcStep % 64;
-	const BOOL fast = (align == 0) ? TRUE : (align >= 16 - MIN(16, (size_t)rem) ? TRUE : FALSE);
 	const SSIZE_T width = nWidth - rem;
 	for (SSIZE_T y = 0; y < nHeight; y++)
 	{
@@ -62,20 +59,18 @@ static INLINE pstatus_t sse_image_copy_bgr24_bgrx32(BYTE* WINPR_RESTRICT pDstDat
 
 		SSIZE_T x = 0;
 		/* Ensure alignment requirements can be met */
-		if (fast)
+		for (; x < width; x += 4)
 		{
-			for (; x < width; x += 4)
-			{
-				const __m128i* src = (const __m128i*)&srcLine[(x + nXSrc) * srcByte];
-				__m128i* dst = (__m128i*)&dstLine[(x + nXDst) * dstByte];
-				const __m128i s0 = _mm_loadu_si128(src);
-				const __m128i s1 = _mm_shuffle_epi8(s0, smask);
-				const __m128i s2 = _mm_loadu_si128(dst);
+			const __m128i* src = (const __m128i*)&srcLine[(x + nXSrc) * srcByte];
+			__m128i* dst = (__m128i*)&dstLine[(x + nXDst) * dstByte];
+			const __m128i s0 = LOAD_SI128(src);
+			const __m128i s1 = _mm_shuffle_epi8(s0, smask);
+			const __m128i s2 = LOAD_SI128(dst);
 
-				__m128i d0 = _mm_blendv_epi8(s1, s2, mask);
-				_mm_storeu_si128(dst, d0);
-			}
+			__m128i d0 = _mm_blendv_epi8(s1, s2, mask);
+			STORE_SI128(dst, d0);
 		}
+
 		for (; x < nWidth; x++)
 		{
 			const BYTE* src = &srcLine[(x + nXSrc) * srcByte];
@@ -118,10 +113,10 @@ static INLINE pstatus_t sse_image_copy_bgrx32_bgrx32(BYTE* WINPR_RESTRICT pDstDa
 		{
 			const __m128i* src = (const __m128i*)&srcLine[(x + nXSrc) * srcByte];
 			__m128i* dst = (__m128i*)&dstLine[(x + nXDst) * dstByte];
-			const __m128i s0 = _mm_loadu_si128(src);
-			const __m128i s1 = _mm_loadu_si128(dst);
+			const __m128i s0 = LOAD_SI128(src);
+			const __m128i s1 = LOAD_SI128(dst);
 			__m128i d0 = _mm_blendv_epi8(s1, s0, mask);
-			_mm_storeu_si128(dst, d0);
+			STORE_SI128(dst, d0);
 		}
 
 		for (; x < nWidth; x++)
@@ -250,14 +245,11 @@ static pstatus_t sse_image_copy_no_overlap(BYTE* WINPR_RESTRICT pDstData, DWORD 
 #endif
 
 /* ------------------------------------------------------------------------- */
-void primitives_init_copy_sse41(primitives_t* prims)
+void primitives_init_copy_sse41_int(primitives_t* WINPR_RESTRICT prims)
 {
 #if defined(SSE_AVX_INTRINSICS_ENABLED)
-	if (IsProcessorFeaturePresent(PF_SSE4_1_INSTRUCTIONS_AVAILABLE))
-	{
-		WLog_VRB(PRIM_TAG, "SSE4.1 optimizations");
-		prims->copy_no_overlap = sse_image_copy_no_overlap;
-	}
+	WLog_VRB(PRIM_TAG, "SSE4.1 optimizations");
+	prims->copy_no_overlap = sse_image_copy_no_overlap;
 #else
 	WLog_VRB(PRIM_TAG, "undefined WITH_SIMD or SSE4.1 intrinsics not available");
 	WINPR_UNUSED(prims);

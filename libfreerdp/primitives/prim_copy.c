@@ -237,7 +237,7 @@ pstatus_t generic_image_copy_no_overlap_convert(
 		    &pDstData[dstVMultiplier * (y + nYDst) * nDstStep + dstVOffset];
 
 		SSIZE_T x = 0;
-		WINPR_PRAGMA_UNROLL_LOOP
+		// WINPR_PRAGMA_UNROLL_LOOP
 		for (; x < width; x++)
 		{
 			const UINT32 color = FreeRDPReadColor_int(&srcLine[(x + nXSrc) * srcByte], SrcFormat);
@@ -257,9 +257,9 @@ pstatus_t generic_image_copy_no_overlap_convert(
 pstatus_t generic_image_copy_no_overlap_memcpy(
     BYTE* WINPR_RESTRICT pDstData, DWORD DstFormat, UINT32 nDstStep, UINT32 nXDst, UINT32 nYDst,
     UINT32 nWidth, UINT32 nHeight, const BYTE* WINPR_RESTRICT pSrcData, DWORD SrcFormat,
-    UINT32 nSrcStep, UINT32 nXSrc, UINT32 nYSrc, const gdiPalette* WINPR_RESTRICT palette,
-    SSIZE_T srcVMultiplier, SSIZE_T srcVOffset, SSIZE_T dstVMultiplier, SSIZE_T dstVOffset,
-    UINT32 flags)
+    UINT32 nSrcStep, UINT32 nXSrc, UINT32 nYSrc,
+    WINPR_ATTR_UNUSED const gdiPalette* WINPR_RESTRICT palette, SSIZE_T srcVMultiplier,
+    SSIZE_T srcVOffset, SSIZE_T dstVMultiplier, SSIZE_T dstVOffset, WINPR_ATTR_UNUSED UINT32 flags)
 {
 	const SSIZE_T dstByte = FreeRDPGetBytesPerPixel(DstFormat);
 	const SSIZE_T srcByte = FreeRDPGetBytesPerPixel(SrcFormat);
