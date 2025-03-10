@@ -207,7 +207,7 @@ static BOOL credssp_auth_client_init_cred_attributes(rdpCredsspAuth* auth)
 		SSIZE_T str_size = 0;
 
 		str_size = ConvertUtf8ToWChar(auth->kerberosSettings.kdcUrl, NULL, 0);
-		if ((str_size <= 0) || (str_size <= UINT16_MAX / 2))
+		if ((str_size <= 0) || (str_size >= UINT16_MAX / 2))
 			return FALSE;
 		str_size++;
 
@@ -829,7 +829,7 @@ static SecurityFunctionTable* auth_resolve_sspi_table(const rdpSettings* setting
 		{
 			WLog_ERR(TAG, "Failed to load SSPI module: %s", module_name);
 			free(sspi_module);
-			return FALSE;
+			return NULL;
 		}
 
 		WLog_INFO(TAG, "Using SSPI Module: %s", module_name);
@@ -840,7 +840,7 @@ static SecurityFunctionTable* auth_resolve_sspi_table(const rdpSettings* setting
 		{
 			WLog_ERR(TAG, "Failed to load SSPI module: %s, no function %s", module_name, proc_name);
 			free(sspi_module);
-			return FALSE;
+			return NULL;
 		}
 		free(sspi_module);
 		return InitSecurityInterface_ptr();

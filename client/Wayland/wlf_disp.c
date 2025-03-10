@@ -129,15 +129,15 @@ static BOOL wlf_disp_sendResize(wlfDispContext* wlfDisp)
 	if (!wlf_disp_settings_changed(wlfDisp))
 		return TRUE;
 
-	/* TODO: Multimonitor support for wayland
-	if (wlc->fullscreen && (freerdp_settings_get_uint32(settings, FreeRDP_MonitorCount > 0))
+	if (wlc->fullscreen && (freerdp_settings_get_uint32(settings, FreeRDP_MonitorCount) > 0))
 	{
-	    if (wlf_disp_sendLayout(wlfDisp->disp, setings->MonitorDefArray,
-	                           freerdp_settings_get_uint32(settings, FreeRDP_MonitorCount) !=
-	CHANNEL_RC_OK) return FALSE;
+		const rdpMonitor* monitors =
+		    freerdp_settings_get_pointer(settings, FreeRDP_MonitorDefArray);
+		const size_t nmonitors = freerdp_settings_get_uint32(settings, FreeRDP_MonitorCount);
+		if (wlf_disp_sendLayout(wlfDisp->disp, monitors, nmonitors) != CHANNEL_RC_OK)
+			return FALSE;
 	}
 	else
-	*/
 	{
 		wlfDisp->waitingResize = TRUE;
 		layout.Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
@@ -158,10 +158,9 @@ static BOOL wlf_disp_sendResize(wlfDispContext* wlfDisp)
 	return wlf_update_last_sent(wlfDisp);
 }
 
-static BOOL wlf_disp_set_window_resizable(wlfDispContext* wlfDisp)
+static BOOL wlf_disp_set_window_resizable(WINPR_ATTR_UNUSED wlfDispContext* wlfDisp)
 {
-#if 0 // TODO
-#endif
+	WLog_ERR("TODO", "TODO: implement");
 	return TRUE;
 }
 

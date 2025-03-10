@@ -398,10 +398,9 @@ static BOOL tsmf_ffmpeg_decode_video(ITSMFDecoder* decoder, const BYTE* data, UI
 		len = avcodec_send_packet(mdecoder->codec_context, &pkt);
 		if (len > 0)
 		{
-			do
-			{
-				len = avcodec_receive_frame(mdecoder->codec_context, mdecoder->frame);
-			} while (len == AVERROR(EAGAIN));
+			len = avcodec_receive_frame(mdecoder->codec_context, mdecoder->frame);
+			if (len == AVERROR(EAGAIN))
+				return TRUE;
 		}
 #endif
 	}
@@ -461,19 +460,6 @@ static BOOL tsmf_ffmpeg_decode_audio(ITSMFDecoder* decoder, const BYTE* data, UI
 	TSMFFFmpegDecoder* mdecoder = (TSMFFFmpegDecoder*)decoder;
 	int len = 0;
 	int frame_size = 0;
-
-#if 0
-	WLog_DBG(TAG, ("tsmf_ffmpeg_decode_audio: data_size %"PRIu32"", data_size));
-
-	for (int i = 0; i < data_size; i++)
-	{
-		WLog_DBG(TAG, ("%02"PRIX8"", data[i]));
-
-		if (i % 16 == 15)
-			WLog_DBG(TAG, ("\n"));
-	}
-
-#endif
 
 	if (mdecoder->decoded_size_max == 0)
 		mdecoder->decoded_size_max = MAX_AUDIO_FRAME_SIZE + 16;
@@ -541,10 +527,9 @@ static BOOL tsmf_ffmpeg_decode_audio(ITSMFDecoder* decoder, const BYTE* data, UI
 			len = avcodec_send_packet(mdecoder->codec_context, &pkt);
 			if (len > 0)
 			{
-				do
-				{
-					len = avcodec_receive_frame(mdecoder->codec_context, decoded_frame);
-				} while (len == AVERROR(EAGAIN));
+				len = avcodec_receive_frame(mdecoder->codec_context, decoded_frame);
+				if (len == AVERROR(EAGAIN))
+					return TRUE;
 			}
 #endif
 
@@ -677,11 +662,17 @@ static void tsmf_ffmpeg_free(ITSMFDecoder* decoder)
 
 	if (mdecoder->codec_context)
 	{
+		free(mdecoder->codec_context->extradata);
+		mdecoder->codec_context->extradata = NULL;
+
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 69, 100)
+		avcodec_free_context(&mdecoder->codec_context);
+#else
 		if (mdecoder->prepared)
 			avcodec_close(mdecoder->codec_context);
 
-		free(mdecoder->codec_context->extradata);
 		av_free(mdecoder->codec_context);
+#endif
 	}
 
 	free(decoder);

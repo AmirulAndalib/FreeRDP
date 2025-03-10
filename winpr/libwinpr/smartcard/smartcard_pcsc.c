@@ -982,12 +982,10 @@ static LONG WINAPI PCSC_SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGrou
 	if (!PCSC_LockCardContext(hContext))
 		return SCARD_E_INVALID_HANDLE;
 
-	mszGroups = NULL; /* mszGroups is not supported by pcsc-lite */
-
 	if (mszGroups)
 	{
 		mszGroupsA = ConvertWCharToUtf8Alloc(mszGroups, NULL);
-		if (!mszGroups)
+		if (!mszGroupsA)
 			return SCARD_E_NO_MEMORY;
 	}
 
@@ -999,22 +997,19 @@ static LONG WINAPI PCSC_SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGrou
 	cnv.ppc = &mszReadersA;
 
 	status = PCSC_SCardListReaders_Internal(hContext, mszGroupsA, cnv.pc, pcchReaders);
+	free(mszGroupsA);
 	if (status == SCARD_S_SUCCESS)
 	{
 		size_t size = 0;
 		WCHAR* str = ConvertMszUtf8NToWCharAlloc(mszReadersA, *pcchReaders, &size);
 		PCSC_SCardFreeMemory_Internal(hContext, mszReadersA);
 		if (!str || (size > UINT32_MAX))
-		{
-			free(mszGroupsA);
 			return SCARD_E_NO_MEMORY;
-		}
+
 		*(LPWSTR*)mszReaders = str;
 		*pcchReaders = (DWORD)size;
 		PCSC_AddMemoryBlock(hContext, str);
 	}
-
-	free(mszGroupsA);
 
 	if (!PCSC_UnlockCardContext(hContext))
 		return SCARD_E_INVALID_HANDLE;
@@ -1062,7 +1057,7 @@ static const char* findCardByAtr(LPCBYTE pbAtr)
 	return NULL;
 }
 
-static LONG WINAPI PCSC_SCardListCardsA(SCARDCONTEXT hContext, LPCBYTE pbAtr,
+static LONG WINAPI PCSC_SCardListCardsA(WINPR_ATTR_UNUSED SCARDCONTEXT hContext, LPCBYTE pbAtr,
                                         LPCGUID rgquidInterfaces, DWORD cguidInterfaceCount,
                                         CHAR* mszCards, LPDWORD pcchCards)
 {
@@ -1115,7 +1110,7 @@ static LONG WINAPI PCSC_SCardListCardsA(SCARDCONTEXT hContext, LPCBYTE pbAtr,
 	return SCARD_S_SUCCESS;
 }
 
-static LONG WINAPI PCSC_SCardListCardsW(SCARDCONTEXT hContext, LPCBYTE pbAtr,
+static LONG WINAPI PCSC_SCardListCardsW(WINPR_ATTR_UNUSED SCARDCONTEXT hContext, LPCBYTE pbAtr,
                                         LPCGUID rgquidInterfaces, DWORD cguidInterfaceCount,
                                         WCHAR* mszCards, LPDWORD pcchCards)
 {
@@ -2961,27 +2956,27 @@ static LONG WINAPI PCSC_SCardWriteCacheW(SCARDCONTEXT hContext, UUID* CardIdenti
 	return SCARD_S_SUCCESS;
 }
 
-static LONG WINAPI
-PCSC_SCardGetReaderIconA(SCARDCONTEXT hContext, LPCSTR szReaderName,
-                         LPBYTE pbIcon /* NOLINT(readability-non-const-parameter) */,
-                         LPDWORD pcbIcon /* NOLINT(readability-non-const-parameter) */)
+static LONG WINAPI PCSC_SCardGetReaderIconA(
+    SCARDCONTEXT hContext, LPCSTR szReaderName,
+    LPBYTE pbIcon /* NOLINT(readability-non-const-parameter) */, LPDWORD pcbIcon)
 {
 	WINPR_UNUSED(hContext);
 	WINPR_UNUSED(szReaderName);
 	WINPR_UNUSED(pbIcon);
-	WINPR_UNUSED(pcbIcon);
+	WINPR_ASSERT(pcbIcon);
+	*pcbIcon = 0;
 	return SCARD_E_UNSUPPORTED_FEATURE;
 }
 
-static LONG WINAPI
-PCSC_SCardGetReaderIconW(SCARDCONTEXT hContext, LPCWSTR szReaderName,
-                         LPBYTE pbIcon /* NOLINT(readability-non-const-parameter) */,
-                         LPDWORD pcbIcon /* NOLINT(readability-non-const-parameter) */)
+static LONG WINAPI PCSC_SCardGetReaderIconW(
+    SCARDCONTEXT hContext, LPCWSTR szReaderName,
+    LPBYTE pbIcon /* NOLINT(readability-non-const-parameter) */, LPDWORD pcbIcon)
 {
 	WINPR_UNUSED(hContext);
 	WINPR_UNUSED(szReaderName);
 	WINPR_UNUSED(pbIcon);
-	WINPR_UNUSED(pcbIcon);
+	WINPR_ASSERT(pcbIcon);
+	*pcbIcon = 0;
 	return SCARD_E_UNSUPPORTED_FEATURE;
 }
 

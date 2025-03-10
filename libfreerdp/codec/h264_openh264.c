@@ -65,7 +65,9 @@ static const char* openh264_library_names[] = {
 #elif defined(__APPLE__)
 	"libopenh264.dylib"
 #else
-	"libopenh264.so"
+	"libopenh264.so.7",     "libopenh264.so.2.5.0", "libopenh264.so.2.4.1", "libopenh264.so.2.4.0",
+	"libopenh264.so.2.3.1", "libopenh264.so.2.3.0", "libopenh264.so",
+
 #endif
 };
 #endif
@@ -150,9 +152,9 @@ static int openh264_decompress(H264_CONTEXT* WINPR_RESTRICT h264,
 #endif
 
 	pSystemBuffer = &sBufferInfo.UsrData.sSystemBuffer;
-	iStride[0] = pSystemBuffer->iStride[0];
-	iStride[1] = pSystemBuffer->iStride[1];
-	iStride[2] = pSystemBuffer->iStride[1];
+	iStride[0] = WINPR_ASSERTING_INT_CAST(uint32_t, pSystemBuffer->iStride[0]);
+	iStride[1] = WINPR_ASSERTING_INT_CAST(uint32_t, pSystemBuffer->iStride[1]);
+	iStride[2] = WINPR_ASSERTING_INT_CAST(uint32_t, pSystemBuffer->iStride[1]);
 
 	if (sBufferInfo.iBufferStatus != 1)
 	{
@@ -166,14 +168,6 @@ static int openh264_decompress(H264_CONTEXT* WINPR_RESTRICT h264,
 		WLog_Print(h264->log, WLOG_WARN, "DecodeFrame2 state: 0x%02X", state);
 		return -2003;
 	}
-
-#if 0
-	WLog_Print(h264->log, WLOG_INFO,
-	           "h264_decompress: state=%u, pYUVData=[%p,%p,%p], bufferStatus=%d, width=%d, height=%d, format=%d, stride=[%d,%d]",
-	           state, (void*) pYUVData[0], (void*) pYUVData[1], (void*) pYUVData[2], sBufferInfo.iBufferStatus,
-	           pSystemBuffer->iWidth, pSystemBuffer->iHeight, pSystemBuffer->iFormat,
-	           pSystemBuffer->iStride[0], pSystemBuffer->iStride[1]);
-#endif
 
 	if (pSystemBuffer->iFormat != videoFormatI420)
 		return -2004;
@@ -252,13 +246,15 @@ static int openh264_compress(H264_CONTEXT* WINPR_RESTRICT h264,
 		sys->EncParamExt.iUsageType = usageType;
 		sys->EncParamExt.iPicWidth = WINPR_ASSERTING_INT_CAST(int, h264->width);
 		sys->EncParamExt.iPicHeight = WINPR_ASSERTING_INT_CAST(int, h264->height);
-		sys->EncParamExt.fMaxFrameRate = WINPR_ASSERTING_INT_CAST(int, h264->FrameRate);
+		sys->EncParamExt.fMaxFrameRate = WINPR_ASSERTING_INT_CAST(short, h264->FrameRate);
 		sys->EncParamExt.iMaxBitrate = UNSPECIFIED_BIT_RATE;
 		sys->EncParamExt.bEnableDenoise = 0;
 		sys->EncParamExt.bEnableLongTermReference = 0;
 		sys->EncParamExt.iSpatialLayerNum = 1;
-		sys->EncParamExt.iMultipleThreadIdc = (int)h264->NumberOfThreads;
-		sys->EncParamExt.sSpatialLayers[0].fFrameRate = h264->FrameRate;
+		sys->EncParamExt.iMultipleThreadIdc =
+		    WINPR_ASSERTING_INT_CAST(unsigned short, h264->NumberOfThreads);
+		sys->EncParamExt.sSpatialLayers[0].fFrameRate =
+		    WINPR_ASSERTING_INT_CAST(short, h264->FrameRate);
 		sys->EncParamExt.sSpatialLayers[0].iVideoWidth = sys->EncParamExt.iPicWidth;
 		sys->EncParamExt.sSpatialLayers[0].iVideoHeight = sys->EncParamExt.iPicHeight;
 		sys->EncParamExt.sSpatialLayers[0].iMaxSpatialBitrate = sys->EncParamExt.iMaxBitrate;
@@ -277,6 +273,8 @@ static int openh264_compress(H264_CONTEXT* WINPR_RESTRICT h264,
 				sys->EncParamExt.iRCMode = RC_OFF_MODE;
 				sys->EncParamExt.sSpatialLayers[0].iDLayerQp = (int)h264->QP;
 				sys->EncParamExt.bEnableFrameSkip = 0;
+				break;
+			default:
 				break;
 		}
 
@@ -336,9 +334,9 @@ static int openh264_compress(H264_CONTEXT* WINPR_RESTRICT h264,
 					}
 				}
 
-				if (sys->EncParamExt.fMaxFrameRate != (int)h264->FrameRate)
+				if ((uint32_t)sys->EncParamExt.fMaxFrameRate != h264->FrameRate)
 				{
-					sys->EncParamExt.fMaxFrameRate = (int)h264->FrameRate;
+					sys->EncParamExt.fMaxFrameRate = WINPR_ASSERTING_INT_CAST(int, h264->FrameRate);
 
 					WINPR_ASSERT((*sys->pEncoder)->SetOption);
 					status = (*sys->pEncoder)
@@ -374,6 +372,8 @@ static int openh264_compress(H264_CONTEXT* WINPR_RESTRICT h264,
 				}
 
 				break;
+			default:
+				break;
 		}
 	}
 
@@ -403,7 +403,8 @@ static int openh264_compress(H264_CONTEXT* WINPR_RESTRICT h264,
 	{
 		for (int j = 0; j < info.sLayerInfo[i].iNalCount; j++)
 		{
-			*pDstSize += info.sLayerInfo[i].pNalLengthInByte[j];
+			const int val = info.sLayerInfo[i].pNalLengthInByte[j];
+			*pDstSize += WINPR_ASSERTING_INT_CAST(uint32_t, val);
 		}
 	}
 
@@ -619,9 +620,9 @@ static BOOL openh264_init(H264_CONTEXT* h264)
 					goto EXCEPTION;
 				}
 
-				status =
-				    (*sys->pDecoder)
-				        ->SetOption(sys->pDecoder, DECODER_OPTION_TRACE_CALLBACK_CONTEXT, &h264);
+				status = (*sys->pDecoder)
+				             ->SetOption(sys->pDecoder, DECODER_OPTION_TRACE_CALLBACK_CONTEXT,
+				                         (void*)&h264);
 
 				if (status != 0)
 				{
@@ -632,9 +633,9 @@ static BOOL openh264_init(H264_CONTEXT* h264)
 					goto EXCEPTION;
 				}
 
-				status =
-				    (*sys->pDecoder)
-				        ->SetOption(sys->pDecoder, DECODER_OPTION_TRACE_CALLBACK, &traceCallback);
+				status = (*sys->pDecoder)
+				             ->SetOption(sys->pDecoder, DECODER_OPTION_TRACE_CALLBACK,
+				                         (void*)&traceCallback);
 
 				if (status != 0)
 				{

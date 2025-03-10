@@ -392,7 +392,7 @@ static BOOL pf_server_logon(freerdp_peer* peer, const SEC_WINNT_AUTH_IDENTITY* i
 	return TRUE;
 }
 
-static BOOL pf_server_adjust_monitor_layout(freerdp_peer* peer)
+static BOOL pf_server_adjust_monitor_layout(WINPR_ATTR_UNUSED freerdp_peer* peer)
 {
 	WINPR_ASSERT(peer);
 	/* proxy as is, there's no need to do anything here */
@@ -403,24 +403,18 @@ static BOOL pf_server_receive_channel_data_hook(freerdp_peer* peer, UINT16 chann
                                                 const BYTE* data, size_t size, UINT32 flags,
                                                 size_t totalSize)
 {
-	pServerContext* ps = NULL;
-	pClientContext* pc = NULL;
-	proxyData* pdata = NULL;
-	const proxyConfig* config = NULL;
-	const pServerStaticChannelContext* channel = NULL;
 	UINT64 channelId64 = channelId;
 
 	WINPR_ASSERT(peer);
 
-	ps = (pServerContext*)peer->context;
+	pServerContext* ps = (pServerContext*)peer->context;
 	WINPR_ASSERT(ps);
 
-	pdata = ps->pdata;
+	proxyData* pdata = ps->pdata;
 	WINPR_ASSERT(pdata);
 
-	pc = pdata->pc;
-	config = pdata->config;
-	WINPR_ASSERT(config);
+	pClientContext* pc = pdata->pc;
+
 	/*
 	 * client side is not initialized yet, call original callback.
 	 * this is probably a drdynvc message between peer and proxy server,
@@ -429,7 +423,8 @@ static BOOL pf_server_receive_channel_data_hook(freerdp_peer* peer, UINT16 chann
 	if (!pc)
 		goto original_cb;
 
-	channel = HashTable_GetItemValue(ps->channelsByFrontId, &channelId64);
+	const pServerStaticChannelContext* channel =
+	    HashTable_GetItemValue(ps->channelsByFrontId, &channelId64);
 	if (!channel)
 	{
 		PROXY_LOG_ERR(TAG, ps, "channel id=%" PRIu64 " not registered here, dropping", channelId64);

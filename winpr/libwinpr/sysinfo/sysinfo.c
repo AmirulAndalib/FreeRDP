@@ -266,9 +266,10 @@ void GetSystemTime(LPSYSTEMTIME lpSystemTime)
 	}
 }
 
-BOOL SetSystemTime(CONST SYSTEMTIME* lpSystemTime)
+BOOL SetSystemTime(WINPR_ATTR_UNUSED CONST SYSTEMTIME* lpSystemTime)
 {
 	/* TODO: Implement */
+	WLog_ERR("TODO", "TODO: Implement");
 	return FALSE;
 }
 
@@ -296,9 +297,10 @@ VOID GetLocalTime(LPSYSTEMTIME lpSystemTime)
 	}
 }
 
-BOOL SetLocalTime(CONST SYSTEMTIME* lpSystemTime)
+BOOL SetLocalTime(WINPR_ATTR_UNUSED CONST SYSTEMTIME* lpSystemTime)
 {
 	/* TODO: Implement */
+	WLog_ERR("TODO", "TODO: Implement");
 	return FALSE;
 }
 
@@ -314,10 +316,12 @@ VOID GetSystemTimeAsFileTime(LPFILETIME lpSystemTimeAsFileTime)
 	*lpSystemTimeAsFileTime = t.ft;
 }
 
-BOOL GetSystemTimeAdjustment(PDWORD lpTimeAdjustment, PDWORD lpTimeIncrement,
-                             PBOOL lpTimeAdjustmentDisabled)
+BOOL GetSystemTimeAdjustment(WINPR_ATTR_UNUSED PDWORD lpTimeAdjustment,
+                             WINPR_ATTR_UNUSED PDWORD lpTimeIncrement,
+                             WINPR_ATTR_UNUSED PBOOL lpTimeAdjustmentDisabled)
 {
 	/* TODO: Implement */
+	WLog_ERR("TODO", "TODO: Implement");
 	return FALSE;
 }
 
@@ -447,7 +451,11 @@ BOOL GetComputerNameA(LPSTR lpBuffer, LPDWORD lpnSize)
 	size_t length = strnlen(hostname, MAX_COMPUTERNAME_LENGTH);
 	const char* dot = strchr(hostname, '.');
 	if (dot)
-		length = WINPR_ASSERTING_INT_CAST(size_t, (dot - hostname));
+	{
+		const size_t dotlen = WINPR_ASSERTING_INT_CAST(size_t, (dot - hostname));
+		if (dotlen < length)
+			length = dotlen;
+	}
 
 	if ((*lpnSize <= (DWORD)length) || !lpBuffer)
 	{
@@ -662,10 +670,10 @@ UINT64 winpr_GetUnixTimeNS(void)
 #define D_BIT_SSE (1 << 25)
 #define D_BIT_SSE2 (1 << 26)
 #define D_BIT_3DN (1 << 30)
-#define C_BIT_SSE3 (1 << 0)
+// #define C_BIT_SSE3 (1 << 0)
 #define C_BIT_PCLMULQDQ (1 << 1)
 #define C81_BIT_LZCNT (1 << 5)
-#define C_BIT_3DNP (1 << 8)
+// #define C_BIT_3DNP (1 << 8)
 #define C_BIT_3DNP (1 << 8)
 #define C_BIT_SSSE3 (1 << 9)
 #define C_BIT_SSE41 (1 << 19)
@@ -782,17 +790,53 @@ BOOL IsProcessorFeaturePresent(DWORD ProcessorFeature)
 	BOOL ret = FALSE;
 #if defined(ANDROID)
 	const uint64_t features = android_getCpuFeatures();
+	const AndroidCpuFamily family = android_getCpuFamily();
+	const BOOL isArm = (family == ANDROID_CPU_FAMILY_ARM) || (family == ANDROID_CPU_FAMILY_ARM64);
+	const BOOL isX86 = (family == ANDROID_CPU_FAMILY_X86) || (family == ANDROID_CPU_FAMILY_X86_64);
 
-	switch (ProcessorFeature)
+	if (isX86)
 	{
-		case PF_ARM_NEON_INSTRUCTIONS_AVAILABLE:
-		case PF_ARM_NEON:
-			return features & ANDROID_CPU_ARM_FEATURE_NEON;
-
-		default:
-			WLog_WARN(TAG, "feature 0x%08" PRIx32 " check not implemented", ProcessorFeature);
-			return FALSE;
+		switch (ProcessorFeature)
+		{
+			case PF_MMX_INSTRUCTIONS_AVAILABLE:
+			case PF_XMMI_INSTRUCTIONS_AVAILABLE:
+			case PF_XMMI64_INSTRUCTIONS_AVAILABLE:
+			case PF_3DNOW_INSTRUCTIONS_AVAILABLE:
+			case PF_SSE3_INSTRUCTIONS_AVAILABLE:
+				return TRUE;
+			case PF_SSSE3_INSTRUCTIONS_AVAILABLE:
+				return features & ANDROID_CPU_X86_FEATURE_SSSE3;
+			case PF_SSE4_1_INSTRUCTIONS_AVAILABLE:
+				return features & ANDROID_CPU_X86_FEATURE_SSE4_1;
+			case PF_SSE4_2_INSTRUCTIONS_AVAILABLE:
+				return features & ANDROID_CPU_X86_FEATURE_SSE4_2;
+			case PF_AVX_INSTRUCTIONS_AVAILABLE:
+				return features & ANDROID_CPU_X86_FEATURE_AVX;
+			case PF_AVX2_INSTRUCTIONS_AVAILABLE:
+				return features & ANDROID_CPU_X86_FEATURE_AVX2;
+			case PF_AVX512F_INSTRUCTIONS_AVAILABLE:
+			default:
+				WLog_WARN(TAG, "feature 0x%08" PRIx32 " check not implemented", ProcessorFeature);
+				return FALSE;
+		}
 	}
+
+	if (isArm)
+	{
+		switch (ProcessorFeature)
+		{
+			case PF_ARM_NEON_INSTRUCTIONS_AVAILABLE:
+			case PF_ARM_NEON:
+				return features & ANDROID_CPU_ARM_FEATURE_NEON;
+
+			default:
+				WLog_WARN(TAG, "feature 0x%08" PRIx32 " check not implemented", ProcessorFeature);
+				return FALSE;
+		}
+	}
+
+	WLog_WARN(TAG, "Unsupported Android CPU family 0x%08" PRIx32, family);
+	return FALSE;
 
 #elif defined(_M_ARM) || defined(_M_ARM64)
 #ifdef __linux__
@@ -861,6 +905,19 @@ BOOL IsProcessorFeaturePresent(DWORD ProcessorFeature)
 				ret = TRUE;
 
 			break;
+		case PF_MMX_INSTRUCTIONS_AVAILABLE:
+		case PF_XMMI_INSTRUCTIONS_AVAILABLE:
+		case PF_XMMI64_INSTRUCTIONS_AVAILABLE:
+		case PF_3DNOW_INSTRUCTIONS_AVAILABLE:
+		case PF_SSE3_INSTRUCTIONS_AVAILABLE:
+		case PF_SSSE3_INSTRUCTIONS_AVAILABLE:
+		case PF_SSE4_1_INSTRUCTIONS_AVAILABLE:
+		case PF_SSE4_2_INSTRUCTIONS_AVAILABLE:
+		case PF_AVX_INSTRUCTIONS_AVAILABLE:
+		case PF_AVX2_INSTRUCTIONS_AVAILABLE:
+		case PF_AVX512F_INSTRUCTIONS_AVAILABLE:
+			ret = FALSE;
+			break;
 		case PF_ARM_V8_INSTRUCTIONS_AVAILABLE:
 		case PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE:
 		case PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE:
@@ -877,6 +934,19 @@ BOOL IsProcessorFeaturePresent(DWORD ProcessorFeature)
 
 	switch (ProcessorFeature)
 	{
+		case PF_MMX_INSTRUCTIONS_AVAILABLE:
+		case PF_XMMI_INSTRUCTIONS_AVAILABLE:
+		case PF_XMMI64_INSTRUCTIONS_AVAILABLE:
+		case PF_3DNOW_INSTRUCTIONS_AVAILABLE:
+		case PF_SSE3_INSTRUCTIONS_AVAILABLE:
+		case PF_SSSE3_INSTRUCTIONS_AVAILABLE:
+		case PF_SSE4_1_INSTRUCTIONS_AVAILABLE:
+		case PF_SSE4_2_INSTRUCTIONS_AVAILABLE:
+		case PF_AVX_INSTRUCTIONS_AVAILABLE:
+		case PF_AVX2_INSTRUCTIONS_AVAILABLE:
+		case PF_AVX512F_INSTRUCTIONS_AVAILABLE:
+			ret = FALSE;
+			break;
 		case PF_ARM_NEON_INSTRUCTIONS_AVAILABLE:
 		case PF_ARM_NEON:
 #ifdef __ARM_NEON
@@ -953,6 +1023,11 @@ BOOL IsProcessorFeaturePresent(DWORD ProcessorFeature)
 			break;
 		case PF_AVX512F_INSTRUCTIONS_AVAILABLE:
 			ret = __builtin_cpu_supports("avx512f");
+			break;
+		case PF_ARM_NEON_INSTRUCTIONS_AVAILABLE:
+#if defined(__ARM_NEON__)
+			ret = TRUE;
+#endif
 			break;
 		default:
 			WLog_WARN(TAG, "feature 0x%08" PRIx32 " check not implemented", ProcessorFeature);

@@ -147,22 +147,11 @@ static void transport_ssl_cb(const SSL* ssl, int where, int ret)
 	}
 }
 
-wStream* transport_send_stream_init(rdpTransport* transport, size_t size)
+wStream* transport_send_stream_init(WINPR_ATTR_UNUSED rdpTransport* transport, size_t size)
 {
 	WINPR_ASSERT(transport);
 
-	wStream* s = StreamPool_Take(transport->ReceivePool, size);
-	if (!s)
-		return NULL;
-
-	if (!Stream_EnsureCapacity(s, size))
-	{
-		Stream_Release(s);
-		return NULL;
-	}
-
-	Stream_SetPosition(s, 0);
-	return s;
+	return Stream_New(NULL, size);
 }
 
 BOOL transport_attach(rdpTransport* transport, int sockfd)
@@ -740,8 +729,9 @@ fail:
 #define WLog_ERR_BIO(transport, biofunc, bio) \
 	transport_bio_error_log(transport, biofunc, bio, __FILE__, __func__, __LINE__)
 
-static void transport_bio_error_log(rdpTransport* transport, LPCSTR biofunc, BIO* bio, LPCSTR file,
-                                    LPCSTR func, DWORD line)
+static void transport_bio_error_log(rdpTransport* transport, LPCSTR biofunc,
+                                    WINPR_ATTR_UNUSED BIO* bio, LPCSTR file, LPCSTR func,
+                                    DWORD line)
 {
 	unsigned long sslerr = 0;
 	int saveerrno = 0;
@@ -1446,9 +1436,12 @@ int transport_check_fds(rdpTransport* transport)
 	}
 
 	received = transport->ReceiveBuffer;
-
-	if (!(transport->ReceiveBuffer = StreamPool_Take(transport->ReceivePool, 0)))
+	transport->ReceiveBuffer = StreamPool_Take(transport->ReceivePool, 0);
+	if (!transport->ReceiveBuffer)
+	{
+		Stream_Release(received);
 		return -1;
+	}
 
 	/**
 	 * status:
@@ -1908,7 +1901,8 @@ void transport_set_early_user_auth_mode(rdpTransport* transport, BOOL EUAMode)
 	WLog_Print(transport->log, WLOG_DEBUG, "Early User Auth Mode: %s", EUAMode ? "on" : "off");
 }
 
-rdpTransportLayer* transport_layer_new(rdpTransport* transport, size_t contextSize)
+rdpTransportLayer* transport_layer_new(WINPR_ATTR_UNUSED rdpTransport* transport,
+                                       size_t contextSize)
 {
 	rdpTransportLayer* layer = (rdpTransportLayer*)calloc(1, sizeof(rdpTransportLayer));
 	if (!layer)
@@ -1983,12 +1977,13 @@ static int transport_layer_bio_read(BIO* bio, char* buf, int size)
 	return status;
 }
 
-static int transport_layer_bio_puts(BIO* bio, const char* str)
+static int transport_layer_bio_puts(WINPR_ATTR_UNUSED BIO* bio, WINPR_ATTR_UNUSED const char* str)
 {
 	return 1;
 }
 
-static int transport_layer_bio_gets(BIO* bio, char* str, int size)
+static int transport_layer_bio_gets(WINPR_ATTR_UNUSED BIO* bio, WINPR_ATTR_UNUSED char* str,
+                                    WINPR_ATTR_UNUSED int size)
 {
 	return 1;
 }

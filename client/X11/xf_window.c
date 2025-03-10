@@ -56,17 +56,9 @@
 #include "xf_input.h"
 #include "xf_keyboard.h"
 #include "xf_utils.h"
+#include "xf_debug.h"
 
 #define TAG CLIENT_TAG("x11")
-
-#ifdef WITH_DEBUG_X11
-#define DEBUG_X11(...) WLog_DBG(TAG, __VA_ARGS__)
-#else
-#define DEBUG_X11(...) \
-	do                 \
-	{                  \
-	} while (0)
-#endif
 
 #include <FreeRDP_Icon_256px.h>
 #define xf_icon_prop FreeRDP_Icon_256px_prop
@@ -334,10 +326,8 @@ void xf_SetWindowFullscreen(xfContext* xfc, xfWindow* window, BOOL fullscreen)
 		/* Lastly apply any monitor shift(translation from remote to local coordinate system)
 		 *  to startX and startY values
 		 */
-		startX += WINPR_ASSERTING_INT_CAST(
-		    int, freerdp_settings_get_uint32(settings, FreeRDP_MonitorLocalShiftX));
-		startY += WINPR_ASSERTING_INT_CAST(
-		    int, freerdp_settings_get_uint32(settings, FreeRDP_MonitorLocalShiftY));
+		startX += freerdp_settings_get_int32(settings, FreeRDP_MonitorLocalShiftX);
+		startY += freerdp_settings_get_int32(settings, FreeRDP_MonitorLocalShiftY);
 	}
 
 	/*
@@ -395,7 +385,7 @@ void xf_SetWindowFullscreen(xfContext* xfc, xfWindow* window, BOOL fullscreen)
 			}
 			else
 			{
-				XSetWindowAttributes xswa;
+				XSetWindowAttributes xswa = { 0 };
 				xswa.override_redirect = True;
 				XChangeWindowAttributes(xfc->display, window->handle, CWOverrideRedirect, &xswa);
 				XRaiseWindow(xfc->display, window->handle);
@@ -576,8 +566,8 @@ static BOOL xf_GetWorkArea_NET_WORKAREA(xfContext* xfc, Window root)
 	if ((xfc->current_desktop * 4 + 3) >= (INT64)nitems)
 		goto fail;
 
-	xfc->workArea.x = (UINT32)MIN(UINT32_MAX, prop[xfc->current_desktop * 4 + 0]);
-	xfc->workArea.y = (UINT32)MIN(UINT32_MAX, prop[xfc->current_desktop * 4 + 1]);
+	xfc->workArea.x = (INT32)MIN(INT32_MAX, prop[xfc->current_desktop * 4 + 0]);
+	xfc->workArea.y = (INT32)MIN(INT32_MAX, prop[xfc->current_desktop * 4 + 1]);
 	xfc->workArea.width = (UINT32)MIN(UINT32_MAX, prop[xfc->current_desktop * 4 + 2]);
 	xfc->workArea.height = (UINT32)MIN(UINT32_MAX, prop[xfc->current_desktop * 4 + 3]);
 
@@ -1112,8 +1102,9 @@ BOOL xf_AppWindowCreate(xfContext* xfc, xfAppWindow* appWindow)
 	return TRUE;
 }
 
-void xf_SetWindowMinMaxInfo(xfContext* xfc, xfAppWindow* appWindow, int maxWidth, int maxHeight,
-                            int maxPosX, int maxPosY, int minTrackWidth, int minTrackHeight,
+void xf_SetWindowMinMaxInfo(xfContext* xfc, xfAppWindow* appWindow, WINPR_ATTR_UNUSED int maxWidth,
+                            WINPR_ATTR_UNUSED int maxHeight, WINPR_ATTR_UNUSED int maxPosX,
+                            WINPR_ATTR_UNUSED int maxPosY, int minTrackWidth, int minTrackHeight,
                             int maxTrackWidth, int maxTrackHeight)
 {
 	XSizeHints* size_hints = NULL;

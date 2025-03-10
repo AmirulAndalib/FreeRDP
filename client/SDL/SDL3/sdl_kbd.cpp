@@ -22,6 +22,7 @@
 #include "sdl_freerdp.hpp"
 #include "sdl_utils.hpp"
 #include "sdl_prefs.hpp"
+#include "sdl_touch.hpp"
 
 #include <SDL3/SDL_oldnames.h>
 
@@ -185,7 +186,6 @@ static const scancode_entry_t map[] = {
 	ENTRY(SDL_SCANCODE_AC_FORWARD, RDP_SCANCODE_BROWSER_FORWARD),
 	ENTRY(SDL_SCANCODE_AC_STOP, RDP_SCANCODE_BROWSER_STOP),
 
-#if 1 // TODO: unmapped
 	ENTRY(SDL_SCANCODE_NONUSHASH, RDP_SCANCODE_UNKNOWN),
 	ENTRY(SDL_SCANCODE_APPLICATION, RDP_SCANCODE_UNKNOWN),
 	ENTRY(SDL_SCANCODE_POWER, RDP_SCANCODE_UNKNOWN),
@@ -280,7 +280,6 @@ static const scancode_entry_t map[] = {
 	ENTRY(SDL_SCANCODE_MEDIA_EJECT, RDP_SCANCODE_UNKNOWN),
 	ENTRY(SDL_SCANCODE_MEDIA_REWIND, RDP_SCANCODE_UNKNOWN),
 	ENTRY(SDL_SCANCODE_MEDIA_FAST_FORWARD, RDP_SCANCODE_UNKNOWN)
-#endif
 };
 
 static UINT32 sdl_get_kbd_flags()
@@ -315,20 +314,26 @@ BOOL sdlInput::keyboard_focus_in()
 	freerdp_input_send_focus_in_event(input, WINPR_ASSERTING_INT_CAST(uint16_t, syncFlags));
 
 	/* finish with a mouse pointer position like mstsc.exe if required */
-#if 0
-    if (xfc->remote_app)
-        return;
-
-    if (XQueryPointer(xfc->display, xfc->window->handle, &w, &w, &d, &d, &x, &y, &state))
-    {
-        if ((x >= 0) && (x < xfc->window->width) && (y >= 0) && (y < xfc->window->height))
-        {
-            xf_event_adjust_coordinates(xfc, &x, &y);
-            freerdp_client_send_button_event(&xfc->common, FALSE, PTR_FLAGS_MOVE, x, y);
-        }
-    }
-#endif
-	return TRUE;
+	// TODO: fullscreen/remote app
+	float fx = 0.0f;
+	float fy = 0.0f;
+	if (_sdl->fullscreen)
+	{
+		SDL_GetGlobalMouseState(&fx, &fy);
+	}
+	else
+	{
+		SDL_GetMouseState(&fx, &fy);
+	}
+	auto x = static_cast<int32_t>(fx);
+	auto y = static_cast<int32_t>(fy);
+	auto w = SDL_GetMouseFocus();
+	if (w)
+	{
+		auto id = SDL_GetWindowID(w);
+		sdl_scale_coordinates(_sdl, id, &x, &y, TRUE, TRUE);
+	}
+	return freerdp_client_send_button_event(_sdl->common(), FALSE, PTR_FLAGS_MOVE, x, y);
 }
 
 /* This function is called to update the keyboard indicator LED */
@@ -390,6 +395,7 @@ uint32_t sdlInput::prefToMask()
 	return mod;
 }
 
+#if defined(WITH_DEBUG_SDL_KBD_EVENTS)
 static const char* sdl_scancode_name(Uint32 scancode)
 {
 	for (const auto& cur : map)
@@ -400,6 +406,7 @@ static const char* sdl_scancode_name(Uint32 scancode)
 
 	return "SDL_SCANCODE_UNKNOWN";
 }
+#endif
 
 static Uint32 sdl_scancode_val(const char* scancodeName)
 {
@@ -412,6 +419,7 @@ static Uint32 sdl_scancode_val(const char* scancodeName)
 	return SDL_SCANCODE_UNKNOWN;
 }
 
+#if defined(WITH_DEBUG_SDL_KBD_EVENTS)
 static const char* sdl_rdp_scancode_name(UINT32 scancode)
 {
 	for (const auto& cur : map)
@@ -433,6 +441,7 @@ static UINT32 sdl_rdp_scancode_val(const char* scancodeName)
 
 	return RDP_SCANCODE_UNKNOWN;
 }
+#endif
 
 static UINT32 sdl_scancode_to_rdp(Uint32 scancode)
 {
@@ -510,8 +519,7 @@ BOOL sdlInput::keyboard_handle_event(const SDL_KeyboardEvent* ev)
 
 			if (ev->scancode == _hotkeyGrab)
 			{
-				_sdl->grab_kbd_enabled = !_sdl->grab_kbd_enabled;
-				keyboard_grab(ev->windowID, _sdl->grab_kbd);
+				keyboard_grab(ev->windowID, !_sdl->grab_kbd);
 				return TRUE;
 			}
 			if (ev->scancode == _hotkeyDisconnect)

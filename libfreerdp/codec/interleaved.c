@@ -98,6 +98,7 @@ static const BYTE g_MaskSpecialFgBg2 = 0x05;
 static const BYTE g_MaskRegularRunLength = 0x1F;
 static const BYTE g_MaskLiteRunLength = 0x0F;
 
+#if defined(WITH_DEBUG_CODECS)
 static const char* rle_code_str(UINT32 code)
 {
 	switch (code)
@@ -146,13 +147,7 @@ static const char* rle_code_str(UINT32 code)
 			return "UNKNOWN";
 	}
 }
-
-static const char* rle_code_str_buffer(UINT32 code, char* buffer, size_t size)
-{
-	const char* str = rle_code_str(code);
-	(void)_snprintf(buffer, size, "%s [0x%08" PRIx32 "]", str, code);
-	return buffer;
-}
+#endif
 
 #define buffer_within_range(pbSrc, size, pbEnd) \
 	buffer_within_range_((pbSrc), (size), (pbEnd), __func__, __FILE__, __LINE__)
@@ -327,6 +322,10 @@ static INLINE UINT32 ExtractRunLength(UINT32 code, const BYTE* pbOrderHdr, const
 	WINPR_ASSERT(pbEnd);
 	WINPR_ASSERT(advance);
 
+#if defined(WITH_DEBUG_CODECS)
+	WLog_VRB(TAG, "extracting %s", rle_code_str(code));
+#endif
+
 	*advance = 0;
 	if (!buffer_within_range(pbOrderHdr, 0, pbEnd))
 		return 0;
@@ -377,7 +376,8 @@ static INLINE UINT32 ExtractRunLength(UINT32 code, const BYTE* pbOrderHdr, const
 #define ensure_capacity(start, end, size, base) \
 	ensure_capacity_((start), (end), (size), (base), __func__, __FILE__, __LINE__)
 static INLINE BOOL ensure_capacity_(const BYTE* start, const BYTE* end, size_t size, size_t base,
-                                    const char* fkt, const char* file, size_t line)
+                                    const char* fkt, WINPR_ATTR_UNUSED const char* file,
+                                    size_t line)
 {
 	const size_t available = (uintptr_t)end - (uintptr_t)start;
 	const BOOL rc = available >= size * base;
@@ -717,7 +717,7 @@ BOOL bitmap_interleaved_context_reset(BITMAP_INTERLEAVED_CONTEXT* WINPR_RESTRICT
 	return TRUE;
 }
 
-BITMAP_INTERLEAVED_CONTEXT* bitmap_interleaved_context_new(BOOL Compressor)
+BITMAP_INTERLEAVED_CONTEXT* bitmap_interleaved_context_new(WINPR_ATTR_UNUSED BOOL Compressor)
 {
 	BITMAP_INTERLEAVED_CONTEXT* interleaved = NULL;
 	interleaved = (BITMAP_INTERLEAVED_CONTEXT*)winpr_aligned_recalloc(
