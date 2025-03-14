@@ -27,11 +27,8 @@ message("project ${PROJECT_NAME} is using version ${PROJECT_VERSION}")
 
 set(MODULE_NAME "xfreerdp")
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS ON)
-
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/)
+include(ProjectCStandard)
 include(CommonConfigOptions)
 
 include(ConfigureFreeRDP)
@@ -51,6 +48,7 @@ set(SRCS
     xf_rail.h
     xf_input.c
     xf_input.h
+    xf_debug.h
     xf_event.c
     xf_event.h
     xf_floatbar.c
@@ -69,6 +67,10 @@ set(SRCS
     xf_graphics.h
     xf_keyboard.c
     xf_keyboard.h
+    keyboard_x11.h
+    keyboard_x11.c
+    xkb_layout_ids.h
+    xkb_layout_ids.c
     xf_video.c
     xf_video.h
     xf_window.c

@@ -48,6 +48,8 @@
 
 #define TAG SERVER_TAG("shadow.x11")
 
+// #define USE_SHADOW_BLEND_CURSOR
+
 static UINT32 x11_shadow_enum_monitors(MONITOR_DEF* monitors, UINT32 maxMonitors);
 
 #ifdef WITH_PAM
@@ -196,8 +198,9 @@ static int x11_shadow_pam_authenticate(rdpShadowSubsystem* subsystem, rdpShadowC
 
 #endif
 
-static BOOL x11_shadow_input_synchronize_event(rdpShadowSubsystem* subsystem,
-                                               rdpShadowClient* client, UINT32 flags)
+static BOOL x11_shadow_input_synchronize_event(WINPR_ATTR_UNUSED rdpShadowSubsystem* subsystem,
+                                               WINPR_ATTR_UNUSED rdpShadowClient* client,
+                                               WINPR_ATTR_UNUSED UINT32 flags)
 {
 	/* TODO: Implement */
 	WLog_WARN(TAG, "not implemented");
@@ -250,9 +253,10 @@ static BOOL x11_shadow_input_keyboard_event(rdpShadowSubsystem* subsystem, rdpSh
 	return TRUE;
 }
 
-static BOOL x11_shadow_input_unicode_keyboard_event(rdpShadowSubsystem* subsystem,
-                                                    rdpShadowClient* client, UINT16 flags,
-                                                    UINT16 code)
+static BOOL x11_shadow_input_unicode_keyboard_event(WINPR_ATTR_UNUSED rdpShadowSubsystem* subsystem,
+                                                    WINPR_ATTR_UNUSED rdpShadowClient* client,
+                                                    WINPR_ATTR_UNUSED UINT16 flags,
+                                                    WINPR_ATTR_UNUSED UINT16 code)
 {
 	/* TODO: Implement */
 	WLog_WARN(TAG, "not implemented");
@@ -587,54 +591,19 @@ static int x11_shadow_handle_xevent(x11ShadowSubsystem* subsystem, XEvent* xeven
 	return 1;
 }
 
-static void x11_shadow_validate_region(x11ShadowSubsystem* subsystem, int x, int y, int width,
-                                       int height)
-{
-	XRectangle region;
-
-	if (!subsystem->use_xfixes || !subsystem->use_xdamage)
-		return;
-
-	region.x = WINPR_ASSERTING_INT_CAST(INT16, x);
-	region.y = WINPR_ASSERTING_INT_CAST(INT16, y);
-	region.width = WINPR_ASSERTING_INT_CAST(UINT16, width);
-	region.height = WINPR_ASSERTING_INT_CAST(UINT16, height);
-#if defined(WITH_XFIXES) && defined(WITH_XDAMAGE)
-	XLockDisplay(subsystem->display);
-	XFixesSetRegion(subsystem->display, subsystem->xdamage_region, &region, 1);
-	XDamageSubtract(subsystem->display, subsystem->xdamage, subsystem->xdamage_region, None);
-	XUnlockDisplay(subsystem->display);
-#endif
-}
-
+#if defined(USE_SHADOW_BLEND_CURSOR)
 static int x11_shadow_blend_cursor(x11ShadowSubsystem* subsystem)
 {
-	UINT32 nXSrc = 0;
-	UINT32 nYSrc = 0;
-	INT64 nXDst = 0;
-	INT64 nYDst = 0;
-	UINT32 nWidth = 0;
-	UINT32 nHeight = 0;
-	UINT32 nSrcStep = 0;
-	UINT32 nDstStep = 0;
-	BYTE* pSrcData = NULL;
-	BYTE* pDstData = NULL;
-	BYTE A = 0;
-	BYTE R = 0;
-	BYTE G = 0;
-	BYTE B = 0;
-	rdpShadowSurface* surface = NULL;
-
 	if (!subsystem)
 		return -1;
 
-	surface = subsystem->common.server->surface;
-	nXSrc = 0;
-	nYSrc = 0;
-	nWidth = subsystem->cursorWidth;
-	nHeight = subsystem->cursorHeight;
-	nXDst = subsystem->common.pointerX - subsystem->cursorHotX;
-	nYDst = subsystem->common.pointerY - subsystem->cursorHotY;
+	rdpShadowSurface* surface = subsystem->common.server->surface;
+	UINT32 nXSrc = 0;
+	UINT32 nYSrc = 0;
+	UINT32 nWidth = subsystem->cursorWidth;
+	UINT32 nHeight = subsystem->cursorHeight;
+	INT64 nXDst = subsystem->common.pointerX - subsystem->cursorHotX;
+	INT64 nYDst = subsystem->common.pointerY - subsystem->cursorHotY;
 
 	if (nXDst >= surface->width)
 		return 1;
@@ -672,10 +641,10 @@ static int x11_shadow_blend_cursor(x11ShadowSubsystem* subsystem)
 	if ((nYDst + nHeight) > surface->height)
 		nHeight = (nYDst > surface->height) ? 0 : (UINT32)(surface->height - nYDst);
 
-	pSrcData = subsystem->cursorPixels;
-	nSrcStep = subsystem->cursorWidth * 4;
-	pDstData = surface->data;
-	nDstStep = surface->scanline;
+	const BYTE* pSrcData = subsystem->cursorPixels;
+	const UINT32 nSrcStep = subsystem->cursorWidth * 4;
+	BYTE* pDstData = surface->data;
+	const UINT32 nDstStep = surface->scanline;
 
 	for (size_t y = 0; y < nHeight; y++)
 	{
@@ -685,10 +654,10 @@ static int x11_shadow_blend_cursor(x11ShadowSubsystem* subsystem)
 
 		for (size_t x = 0; x < nWidth; x++)
 		{
-			B = *pSrcPixel++;
-			G = *pSrcPixel++;
-			R = *pSrcPixel++;
-			A = *pSrcPixel++;
+			const BYTE B = *pSrcPixel++;
+			const BYTE G = *pSrcPixel++;
+			const BYTE R = *pSrcPixel++;
+			const BYTE A = *pSrcPixel++;
 
 			if (A == 0xFF)
 			{
@@ -710,6 +679,7 @@ static int x11_shadow_blend_cursor(x11ShadowSubsystem* subsystem)
 
 	return 1;
 }
+#endif
 
 static BOOL x11_shadow_check_resize(x11ShadowSubsystem* subsystem)
 {
@@ -874,7 +844,10 @@ static int x11_shadow_screen_grab(x11ShadowSubsystem* subsystem)
 			if (!success)
 				goto fail_capture;
 
-			// x11_shadow_blend_cursor(subsystem);
+#if defined(USE_SHADOW_BLEND_CURSOR)
+			if (x11_shadow_blend_cursor(subsystem) < 0)
+				goto fail_capture;
+#endif
 			count = ArrayList_Count(server->clients);
 			shadow_subsystem_frame_update(&subsystem->common);
 

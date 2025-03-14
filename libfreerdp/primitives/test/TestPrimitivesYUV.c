@@ -92,6 +92,10 @@ static BOOL similarRGB(size_t y, const BYTE* src, const BYTE* dst, size_t size, 
 			              "[%s] Color value  mismatch R[%02X %02X], G[%02X %02X], B[%02X %02X] at "
 			              "position %" PRIuz "\n",
 			              use444 ? "AVC444" : "AVC420", sR, dR, sG, dG, sA, dA, x);
+			(void)fprintf(stderr,
+			              "[%s] Color value  mismatch Y[%02X %02X], U[%02X %02X], V[%02X %02X] at "
+			              "position %" PRIuz "\n",
+			              use444 ? "AVC444" : "AVC420", sY, dY, sU, dU, sV, dV, x);
 			return FALSE;
 		}
 
@@ -738,8 +742,8 @@ static BOOL TestPrimitiveRgbToLumaChroma(primitives_t* prims, prim_size_t roi, U
 	size_t uvwidth = 0;
 	const size_t padding = 0x1000;
 	UINT32 stride = 0;
-	__RGBToAVC444YUV_t fkt = NULL;
-	__RGBToAVC444YUV_t gen = NULL;
+	fn_RGBToAVC444YUV_t fkt = NULL;
+	fn_RGBToAVC444YUV_t gen = NULL;
 	const UINT32 formats[] = { PIXEL_FORMAT_XRGB32, PIXEL_FORMAT_XBGR32, PIXEL_FORMAT_ARGB32,
 		                       PIXEL_FORMAT_ABGR32, PIXEL_FORMAT_RGBA32, PIXEL_FORMAT_RGBX32,
 		                       PIXEL_FORMAT_BGRA32, PIXEL_FORMAT_BGRX32 };
@@ -1032,9 +1036,11 @@ static BOOL compare_yuv444_to_rgb(prim_size_t roi, DWORD type)
 	if (!allocate_yuv(yuv, roi) || !rgb1 || !rgb2)
 		goto fail;
 
-	if (soft->YUV444ToRGB_8u_P3AC4R(yuv, yuvStep, rgb1, stride, format, &roi) != PRIMITIVES_SUCCESS)
+	const BYTE* cyuv[] = { yuv[0], yuv[1], yuv[2] };
+	if (soft->YUV444ToRGB_8u_P3AC4R(cyuv, yuvStep, rgb1, stride, format, &roi) !=
+	    PRIMITIVES_SUCCESS)
 		goto fail;
-	if (prims->YUV444ToRGB_8u_P3AC4R(yuv, yuvStep, rgb2, stride, format, &roi) !=
+	if (prims->YUV444ToRGB_8u_P3AC4R(cyuv, yuvStep, rgb2, stride, format, &roi) !=
 	    PRIMITIVES_SUCCESS)
 		goto fail;
 
@@ -1203,9 +1209,11 @@ static BOOL compare_yuv420_to_rgb(prim_size_t roi, DWORD type)
 	if (!allocate_yuv(yuv, roi) || !rgb1 || !rgb2)
 		goto fail;
 
-	if (soft->YUV420ToRGB_8u_P3AC4R(yuv, yuvStep, rgb1, stride, format, &roi) != PRIMITIVES_SUCCESS)
+	const BYTE* cyuv[3] = { yuv[0], yuv[1], yuv[2] };
+	if (soft->YUV420ToRGB_8u_P3AC4R(cyuv, yuvStep, rgb1, stride, format, &roi) !=
+	    PRIMITIVES_SUCCESS)
 		goto fail;
-	if (prims->YUV420ToRGB_8u_P3AC4R(yuv, yuvStep, rgb2, stride, format, &roi) !=
+	if (prims->YUV420ToRGB_8u_P3AC4R(cyuv, yuvStep, rgb2, stride, format, &roi) !=
 	    PRIMITIVES_SUCCESS)
 		goto fail;
 

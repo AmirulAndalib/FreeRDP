@@ -1,3 +1,209 @@
+# 2025-03-13 Version 3.14.0
+
+Bugfix and cleanup release.
+Due to some new API functions the minor version has been increased.
+
+So, what has been changed:
+* Fix spelling of 'dont' (#11297)
+* missing ConnectFlags variable in license_read_platform_challenge_packet breaks in WITH_DEBUG_LICENSE builds (#11301)
+* [locale] add freerdp_detect_keyboard_layout_from_locale (#11298)
+* Invert 3x deprecated (#11296)
+* [primitives,copy] remove alignment check (#11302)
+* sdl-common (#11303)
+* [client,sdl3] fix bitmap clipboard copy (#11304)
+* [channels,ubdrc] add some more failure logging (#11306)
+* [client] Fix writing incorrect type for integer values in RDP file (#11307)
+* Urbdrc cleanups (#11308)
+* [winpr,nt] Fix incorrect name in FILE_INFORMATION_CLASS (#11311)
+* [core,gateway] improve rts_read_auth_verifier_with_stub (#11314)
+* [cmake] Fix DLL install directory (#11316)
+* Enable dynamic resolution setting (#11317)
+* [client,x11] add apple keyboard fallback (#11315)
+* [client,sdl] #include <SDL3/SDL_main.h> (#11318)
+* [windows] fix deprecation and int warnings (#11319)
+* Mingw build improvements (#11321)
+* Urbdrc leak fix (#11322)
+* [warnings] fixed integer casts (#11325)
+* [core,gateway] unify TSG_PACKET_MSG_RESPONSE (#11327)
+* [channels,drive] Prefer using handle from IRP_CREATE when possible (#11338)
+
+New Contributors
+* @eduar-hte made their first contribution in (#11301)
+
+For a complete and detailed change log since the last release run:
+git log 3.14.0...3.13.0
+
+# 2025-03-06 Version 3.13.0
+
+Another bugfix and cleanup release.
+Due to some new functions and fields being introduced the minor version
+has been increased.
+
+New for application developers:
+A new CMake Variable WITH_FREERDP_3x_DEPRECATED (ON by default) allows
+disabling all symbols that have been marked deprecated during the 3.x
+release cycle. Such a build can be used to test compatibility with future
+versions that might drop these symbols entirely.
+
+So, what has been done:
+* Friends of old hardware rejoice, serial port redirection got an update
+  (not kidding you)
+* Android builds have been updated to be usable again
+* Mingw builds now periodically do a shared and static build
+* Fixed some bugs and regressions along the way and improved test coverage as
+  well
+
+Noteworthy Changes:
+* Cmake fix symbol visibility (#11185)
+* Sanity checks (#11186)
+* [locale,keyboard] fix loading from file (#11188)
+* [client,x11] only filter input on floatbar lock (#11190)
+* [core,gcc] improve consistency checks (#11191)
+* [channel,urbdrc] fix urbdrc_udevman_register_devices (#11194)
+* [client,sdl] fix keyboard grab (#11195)
+* Nightly deb sdl3 optional (#11197)
+* Alt arch update (#11199)
+* [ci,alt-arch] split config (#11200)
+* [core,freerdp] send MCS Disconnect Provider Ultimatum PDU (#11202)
+* [macro] fix use of WINPR_DEPRECATED (#11203)
+* [channel,rdpecam] UVC H.264 fix for c922 camera (#11207)
+* [channel,rdpdr] support general caps V1 (#11209)
+* [cmake] fix missing include (#11213)
+* [client,sdl] mark SDL2 as deprecated. (#11223)
+* Cursor test and fixes (#11220)
+* [build,android] add workaround for OpenSSL tag naming (#11224)
+* [core,credssp_auth] Fix faulty string length check in `credssp_auth_client_init_cred_attributes` (#11226)
+* [codec,test] fix type mismatch (#11229)
+* [codec,dsp] ignore encoder errors (#11225)
+* Android fixes (#11230)
+* [channels,rdpsnd] fix android build warnings (#11232)
+* [client,common] improve parsing of TLS options (#11235)
+* [client,x11] reduce verbosity of actionscript log (#11238)
+* CMake: generate a .gitignore file for the build directory (#11241)
+* [winpr,wlog] simplify WLog_* macros (#11237)
+* [client,cmdline] fix port parsing for gateway (#11243)
+* Mingw update (#11242, #11244, #11245)
+* [ci,abi] suppress gdi_graphics_pipeline_init_ex (#11246)
+* [cmake] Enable CMAKE_EXPORT_COMPILE_COMMANDS (#11252)
+* [packaging,flatpak] remove .orig file (#11254)
+* [utils,smartcard] check output buffer length (#11255)
+* [client,x11] improve action script logging (#11257)
+* [warnings] fix -Wunused-macro (#11258)
+* [warnings] fix -Wunused-function (#11260)
+* Redirection && StreamPool usage fixes (#11262)
+* Serial term fixes (#11253)
+* [server,shadow] multi rect BitmapUpdate support (#11268)
+* Redirection && StreamPool usage fixes (#11262)
+* [warnings] eliminate dead code (#11275)
+* Implement stuff (#11277)
+* [dead code] remove some unused code (#11280)
+* [channels,rdpecam] fix libusb include path (#11282)
+* Rdpear test fix (#11284)
+* client: Move buffer pointer after writing RDP settings (#11287)
+* [warnings] eliminate dead code (#11283)
+* [client,x11] implement keyboard mapping (#11273)
+* Serial term fixes (#11253)
+* [core,gateway] add tsg checks (#11288)
+
+New Contributors:
+* @yegorich made their first contribution in (#11241)
+* @THS-on made their first contribution in (#11243)
+
+For a complete and detailed change log since the last release run:
+git log 3.13.0...3.12.0
+
+# 2025-02-14 Version 3.12.0
+
+A bugfix and cleanup release.
+Due to a new function and a new macro the minor version was incremented.
+* Multimonitor backward compatibility fixes
+* Smartcard compatibility
+* Improve the [MS-RDPECAM] support
+* Improve smartcard redirection support
+* Refactor SSE optimizations: Split headers, unify load/store, require SSE3 for
+  all optimized functions
+* Refactors the CMake build to better support configuration based builders
+* Fix a few regressions from last release (USB redirection and graphical glitches)
+
+Noteworthy Changes:
+* Fix all unused warnings (#11167)
+* [common,settings] fix backward compatibility for LocalMonitorOffset (#11175)
+* Warning cleanups (#11172, #11173, #11167)
+* CMake configurable C/C++ standard, WINPR_ATTR_UNUSED (#11171)
+* [utils,smartcard] fix return checks for SCardListReaders (#11170)
+* [primitives,sse] split headers (#11163)
+* X11 keymap reload fix (#11162)
+* [core,freerdp] New API freerdp_presist_credentials (#/11160)
+* [client,common] Avoid use of reserved types by @fossdd (#11144)
+* [core,orders] fix update_read_delta by @akallabeth (#11145)
+* [build,android] only enable required codecs for ffmpeg by @akallabeth (#11147)
+* [iOS] Update OpenSSL library location and build script by @beersheba (#11148)
+* Warn fixes, code cleanups by @akallabeth (#11140)
+* [server] fix compilation errors after adding NONAMELESSUNION. by @llyzs (#11149)
+* [channel,rdpecam] support Logitech UVC H.264 stream mux payload by @oleg0421 (#11132)
+* [winpr,sysinfo] limit GetComputerNameA to 31 chars by @akallabeth (#11150)
+* Warn fixes42 by @akallabeth (#11151)
+* [utils,smartcard] return proper list for smartcard listing by @akallabeth (#11152)
+* [channel,rdpecam] uvc_h264 xu_descriptor pointer fix by @oleg0421 (#11154)
+* [channel,urbdrc] fix libusb return code checks by @akallabeth (#11156)
+* Function size refactor by @akallabeth (#11157)
+* Cmake multiconfig2 by @akallabeth (#10853)
+
+New Contributors:
+* @fossdd made their first contribution in https://github.com/FreeRDP/FreeRDP/pull/11144
+
+For a complete and detailed change log since the last release run:
+git log 3.12.0...3.11.1
+
+# 2025-02-07 Version 3.11.1
+
+A bugfix release addressing two regressions reported against 3.11.0
+
+Noteworthy changes:
+ * Fix a segfault when passing /pth (#11138)
+ * Fix a regression in planar codec (#11136)
+
+For a complete and detailed change log since the last release run:
+git log 3.11.1...3.11.0
+
+# 2025-02-06 Version 3.11.0
+
+A new release with bugfixes and code cleanups as well as a few nifty little
+features that will improve your meetings.
+
+Noteworthy changes:
+ * Updated android client to more recent gradle (#11105, #11110)
+ * Fix cmake clean target (#109
+ * SDL3 bugfixes and API updates (#11092, #11093, #11128)
+ * Fix keyboard mapping, add working japanese and korean types, deprecate
+   obsolete functions (#10989, #11035, #11011, #11074, #11037)
+ * Fix timezone mapping and iteration (#11077, #11079, #11080, #11083)
+ * Fix YUV reverse filter for AVC444 modes (#11045, #11063, #11066, #11081, #11086,
+   #11087)
+ * Fix H.264 encoder wrapper issues (#11117, #11121, #11078)
+ * MS-RDPECAM: Support for H.264 encoding with VA-API (#10887)
+ * Fix various CMake, build script and github workflow issues (#10992, #10996,
+   #11020, #11031, #11030, #11062, #11064, #11069, #11073, #11123, #11109,
+   #11120, #11053, #11089)
+ * [codec,planar] fix decoder regression (#11033)
+ * [client,cmdline] fix vmconnect checks (#11051)
+ * Fix multi-monitor related checks (#11095)
+ * Fix various compiler and clang-tidy warnings (#10953, #11003, #11004,
+   #11007, #11016, #11018, #11019, #11021, #11017, #11000, #11023, #11024,
+   #11026, #11002, #11028, #11001, #11029, #10999, #11006, #11034, #10998,
+   #11044, #11050, #11052, #11057, #11059, #11065, #11067, #11068, #11060,
+   #11071, #11085, #11088, #11099, #11102, #11108, #11124, #11126, #11129,
+   #11130)
+
+New Contributors
+ * @chewi made their first contribution in https://github.com/FreeRDP/FreeRDP/pull/11004
+ * @gpotter2 made their first contribution in https://github.com/FreeRDP/FreeRDP/pull/11016
+ * @vmpn made their first contribution in https://github.com/FreeRDP/FreeRDP/pull/11092
+
+For a complete and detailed change log since the last release run:
+git log 3.11.0...3.10.3
+
+
 # 2024-12-17 Version 3.10.3
 
 Follow up release to 3.10.2, as we've discovered a few bugs after release.

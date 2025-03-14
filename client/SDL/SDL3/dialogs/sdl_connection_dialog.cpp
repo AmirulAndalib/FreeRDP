@@ -159,8 +159,8 @@ bool SDLConnectionDialog::clearWindow(SDL_Renderer* renderer)
 {
 	assert(renderer);
 
-	const int drc = SDL_SetRenderDrawColor(renderer, backgroundcolor.r, backgroundcolor.g,
-	                                       backgroundcolor.b, backgroundcolor.a);
+	const auto drc = SDL_SetRenderDrawColor(renderer, backgroundcolor.r, backgroundcolor.g,
+	                                        backgroundcolor.b, backgroundcolor.a);
 	if (widget_log_error(drc, "SDL_SetRenderDrawColor"))
 		return false;
 
@@ -483,7 +483,8 @@ void SDLConnectionDialog::resetTimer()
 	_running = false;
 }
 
-Uint32 SDLConnectionDialog::timeout(void* pvthis, SDL_TimerID timerID, Uint32 intervalMS)
+Uint32 SDLConnectionDialog::timeout(void* pvthis, [[maybe_unused]] SDL_TimerID timerID,
+                                    [[maybe_unused]] Uint32 intervalMS)
 {
 	auto self = static_cast<SDLConnectionDialog*>(pvthis);
 	self->hide();

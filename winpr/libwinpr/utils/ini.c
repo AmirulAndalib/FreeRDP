@@ -139,7 +139,7 @@ static FILE* IniFile_Open_File(wIniFile* ini, const char* filename)
 	WINPR_ASSERT(ini);
 
 	if (!filename)
-		return FALSE;
+		return NULL;
 
 	if (ini->readOnly)
 		return winpr_fopen(filename, "rb");
@@ -181,6 +181,7 @@ static BOOL IniFile_Load_File(wIniFile* ini, const char* filename)
 		goto out_file;
 
 	ini->buffer[fileSize] = '\n';
+	ini->buffer[fileSize + 1] = '\0';
 	IniFile_Load_NextLine(ini, ini->buffer);
 	rc = TRUE;
 

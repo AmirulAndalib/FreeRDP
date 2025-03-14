@@ -361,7 +361,6 @@ static LRESULT CALLBACK hotplug_proc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM 
 					{
 						PDEV_BROADCAST_VOLUME lpdbv = (PDEV_BROADCAST_VOLUME)lpdb;
 						DWORD unitmask = lpdbv->dbcv_unitmask;
-						int count;
 						char drive_name_upper, drive_name_lower;
 						ULONG_PTR* keys = NULL;
 						DEVICE_DRIVE_EXT* device_ext;
@@ -373,9 +372,10 @@ static LRESULT CALLBACK hotplug_proc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM 
 							{
 								drive_name_upper = 'A' + i;
 								drive_name_lower = 'a' + i;
-								count = ListDictionary_GetKeys(rdpdr->devman->devices, &keys);
+								const size_t count =
+								    ListDictionary_GetKeys(rdpdr->devman->devices, &keys);
 
-								for (int j = 0; j < count; j++)
+								for (size_t j = 0; j < count; j++)
 								{
 									device_ext = (DEVICE_DRIVE_EXT*)ListDictionary_GetItemValue(
 									    rdpdr->devman->devices, (void*)keys[j]);
@@ -388,13 +388,14 @@ static LRESULT CALLBACK hotplug_proc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM 
 									{
 										if (device_ext->automount)
 										{
-											devman_unregister_device(rdpdr->devman, (void*)keys[j]);
-											ids[0] = keys[j];
+											ULONG_PTR key = keys[j];
+											devman_unregister_device(rdpdr->devman, (void*)key);
+											ids[0] = WINPR_ASSERTING_INT_CAST(uint32_t, key);
 
 											if ((error = rdpdr_send_device_list_remove_request(
 											         rdpdr, 1, ids)))
 											{
-												// dont end on error, just report ?
+												// don't end on error, just report ?
 												WLog_Print(
 												    rdpdr->log, WLOG_ERROR,
 												    "rdpdr_send_device_list_remove_request failed "
@@ -1495,15 +1496,10 @@ UINT rdpdr_try_send_device_list_announce_request(rdpdrPlugin* rdpdr)
 
 static UINT dummy_irp_response(rdpdrPlugin* rdpdr, wStream* s)
 {
-	wStream* output = NULL;
-	UINT32 DeviceId = 0;
-	UINT32 FileId = 0;
-	UINT32 CompletionId = 0;
-
 	WINPR_ASSERT(rdpdr);
 	WINPR_ASSERT(s);
 
-	output = StreamPool_Take(rdpdr->pool, 256); // RDPDR_DEVICE_IO_RESPONSE_LENGTH
+	wStream* output = StreamPool_Take(rdpdr->pool, 256); // RDPDR_DEVICE_IO_RESPONSE_LENGTH
 	if (!output)
 	{
 		WLog_Print(rdpdr->log, WLOG_ERROR, "Stream_New failed!");
@@ -1512,10 +1508,14 @@ static UINT dummy_irp_response(rdpdrPlugin* rdpdr, wStream* s)
 
 	Stream_SetPosition(s, 4); /* see "rdpdr_process_receive" */
 
-	Stream_Read_UINT32(s, DeviceId);     /* DeviceId (4 bytes) */
-	Stream_Read_UINT32(s, FileId);       /* FileId (4 bytes) */
-	Stream_Read_UINT32(s, CompletionId); /* CompletionId (4 bytes) */
+	const uint32_t DeviceId = Stream_Get_UINT32(s);     /* DeviceId (4 bytes) */
+	const uint32_t FileId = Stream_Get_UINT32(s);       /* FileId (4 bytes) */
+	const uint32_t CompletionId = Stream_Get_UINT32(s); /* CompletionId (4 bytes) */
 
+	WLog_Print(rdpdr->log, WLOG_ERROR,
+	           "Dummy response {DeviceId=%" PRIu32 ", FileId=%" PRIu32 ", CompletionId=%" PRIu32
+	           "}",
+	           DeviceId, FileId, CompletionId);
 	if (!rdpdr_write_iocompletion_header(output, DeviceId, CompletionId, STATUS_UNSUCCESSFUL))
 		return CHANNEL_RC_NO_MEMORY;
 

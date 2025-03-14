@@ -102,10 +102,10 @@ static void libavcodec_destroy_encoder_context(H264_CONTEXT* WINPR_RESTRICT h264
 
 	if (sys->codecEncoderContext)
 	{
-		avcodec_close(sys->codecEncoderContext);
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 69, 100)
 		avcodec_free_context(&sys->codecEncoderContext);
 #else
+		avcodec_close(sys->codecEncoderContext);
 		av_free(sys->codecEncoderContext);
 #endif
 	}
@@ -293,15 +293,17 @@ static int libavcodec_decompress(H264_CONTEXT* WINPR_RESTRICT h264,
 
 	sys->videoFrame->format = AV_PIX_FMT_YUV420P;
 
-	do
-	{
 #ifdef WITH_VAAPI
 		status = avcodec_receive_frame(sys->codecDecoderContext,
 		                               sys->hwctx ? sys->hwVideoFrame : sys->videoFrame);
 #else
 		status = avcodec_receive_frame(sys->codecDecoderContext, sys->videoFrame);
 #endif
-	} while (status == AVERROR(EAGAIN));
+	    if (status == AVERROR(EAGAIN))
+	    {
+		    rc = 0;
+		    goto fail;
+	    }
 
 	gotFrame = (status == 0);
 #else
@@ -344,14 +346,6 @@ static int libavcodec_decompress(H264_CONTEXT* WINPR_RESTRICT h264,
 		goto fail;
 	}
 
-#endif
-#if 0
-	WLog_Print(h264->log, WLOG_INFO,
-	           "libavcodec_decompress: frame decoded (status=%d, gotFrame=%d, width=%d, height=%d, Y=[%p,%d], U=[%p,%d], V=[%p,%d])",
-	           status, gotFrame, sys->videoFrame->width, sys->videoFrame->height,
-	           (void*) sys->videoFrame->data[0], sys->videoFrame->linesize[0],
-	           (void*) sys->videoFrame->data[1], sys->videoFrame->linesize[1],
-	           (void*) sys->videoFrame->data[2], sys->videoFrame->linesize[2]);
 #endif
 
 	if (gotFrame)
@@ -594,10 +588,10 @@ static void libavcodec_uninit(H264_CONTEXT* h264)
 
 	if (sys->codecDecoderContext)
 	{
-		avcodec_close(sys->codecDecoderContext);
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55, 69, 100)
 		avcodec_free_context(&sys->codecDecoderContext);
 #else
+		avcodec_close(sys->codecDecoderContext);
 		av_free(sys->codecDecoderContext);
 #endif
 	}

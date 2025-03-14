@@ -387,7 +387,9 @@ static UINT rdpei_send_pen_frame(RdpeiClientContext* context, RDPINPUT_PEN_FRAME
 		frame->frameOffset = rdpei->currentPenFrameTime - rdpei->previousPenFrameTime;
 	}
 
-	if ((error = rdpei_send_pen_event_pdu(callback, frame->frameOffset, frame, 1)))
+	const size_t off = WINPR_ASSERTING_INT_CAST(size_t, frame->frameOffset);
+	error = rdpei_send_pen_event_pdu(callback, off, frame, 1);
+	if (error)
 		return error;
 
 	rdpei->previousPenFrameTime = rdpei->currentPenFrameTime;
@@ -785,15 +787,13 @@ static UINT rdpei_recv_sc_ready_pdu(GENERIC_CHANNEL_CALLBACK* callback, wStream*
 	if (rdpei->version > protocolVersion)
 		rdpei->version = protocolVersion;
 	rdpei->features = features;
-#if 0
 
-	if (protocolVersion != RDPINPUT_PROTOCOL_V10)
+	if (protocolVersion > RDPINPUT_PROTOCOL_V300)
 	{
-        WLog_Print(rdpei->base.log, WLOG_ERROR,  "Unknown [MS-RDPEI] protocolVersion: 0x%08"PRIX32"", protocolVersion);
-		return -1;
+		WLog_Print(rdpei->base.log, WLOG_WARN,
+		           "Unknown [MS-RDPEI] protocolVersion: 0x%08" PRIX32 "", protocolVersion);
 	}
 
-#endif
 	return CHANNEL_RC_OK;
 }
 

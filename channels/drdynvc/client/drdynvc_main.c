@@ -517,7 +517,7 @@ static UINT dvcman_channel_close(DVCMAN_CHANNEL* channel, BOOL perRequest, BOOL 
 	return error;
 }
 
-static DVCMAN_CHANNEL* dvcman_channel_new(drdynvcPlugin* drdynvc,
+static DVCMAN_CHANNEL* dvcman_channel_new(WINPR_ATTR_UNUSED drdynvcPlugin* drdynvc,
                                           IWTSVirtualChannelManager* pChannelMgr, UINT32 ChannelId,
                                           const char* ChannelName)
 {
@@ -828,7 +828,7 @@ static UINT dvcman_receive_channel_data_first(DVCMAN_CHANNEL* channel, UINT32 le
  * @return 0 on success, otherwise a Win32 error code
  */
 static UINT dvcman_receive_channel_data(DVCMAN_CHANNEL* channel, wStream* data,
-                                        UINT32 ThreadingFlags)
+                                        WINPR_ATTR_UNUSED UINT32 ThreadingFlags)
 {
 	UINT status = CHANNEL_RC_OK;
 	size_t dataSize = Stream_GetRemainingLength(data);
@@ -945,7 +945,6 @@ static UINT drdynvc_write_data(drdynvcPlugin* drdynvc, UINT32 ChannelId, const B
 	size_t pos = 0;
 	UINT8 cbChId = 0;
 	UINT8 cbLen = 0;
-	unsigned long chunkLength = 0;
 	UINT status = CHANNEL_RC_BAD_INIT_HANDLE;
 	DVCMAN* dvcman = NULL;
 
@@ -993,10 +992,16 @@ static UINT drdynvc_write_data(drdynvcPlugin* drdynvc, UINT32 ChannelId, const B
 		const INT32 pdu = (DATA_FIRST_PDU << 4) | cbChId | (cbLen << 2);
 		Stream_Write_UINT8(data_out, WINPR_ASSERTING_INT_CAST(UINT8, pdu));
 		Stream_SetPosition(data_out, pos);
-		chunkLength = CHANNEL_CHUNK_LENGTH - pos;
-		Stream_Write(data_out, data, chunkLength);
-		data += chunkLength;
-		dataSize -= chunkLength;
+
+		{
+			WINPR_ASSERT(pos <= CHANNEL_CHUNK_LENGTH);
+			const uint32_t chunkLength =
+			    CHANNEL_CHUNK_LENGTH - WINPR_ASSERTING_INT_CAST(uint32_t, pos);
+			Stream_Write(data_out, data, chunkLength);
+
+			data += chunkLength;
+			dataSize -= chunkLength;
+		}
 		status = drdynvc_send(drdynvc, data_out);
 
 		while (status == CHANNEL_RC_OK && dataSize > 0)
@@ -1015,10 +1020,12 @@ static UINT drdynvc_write_data(drdynvcPlugin* drdynvc, UINT32 ChannelId, const B
 			Stream_SetPosition(data_out, 0);
 			Stream_Write_UINT8(data_out, (DATA_PDU << 4) | cbChId);
 			Stream_SetPosition(data_out, pos);
-			chunkLength = dataSize;
 
+			uint32_t chunkLength = dataSize;
+
+			WINPR_ASSERT(pos <= CHANNEL_CHUNK_LENGTH);
 			if (chunkLength > CHANNEL_CHUNK_LENGTH - pos)
-				chunkLength = CHANNEL_CHUNK_LENGTH - pos;
+				chunkLength = CHANNEL_CHUNK_LENGTH - WINPR_ASSERTING_INT_CAST(uint32_t, pos);
 
 			Stream_Write(data_out, data, chunkLength);
 			data += chunkLength;

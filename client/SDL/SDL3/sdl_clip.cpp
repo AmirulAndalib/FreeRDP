@@ -25,6 +25,7 @@
 #include <utility>
 
 #include <winpr/wlog.h>
+#include <winpr/image.h>
 
 #include "sdl_clip.hpp"
 #include "sdl_freerdp.hpp"
@@ -49,6 +50,7 @@ static const std::vector<const char*>& s_mime_text()
 static const char s_mime_png[] = "image/png";
 static const char s_mime_webp[] = "image/webp";
 static const char s_mime_jpg[] = "image/jpeg";
+
 static const char s_mime_tiff[] = "image/tiff";
 static const char s_mime_uri_list[] = "text/uri-list";
 static const char s_mime_html[] = "text/html";
@@ -70,8 +72,17 @@ static const std::vector<const char*>& s_mime_image()
 	static std::vector<const char*> values;
 	if (values.empty())
 	{
-		values = std::vector<const char*>(
-		    { s_mime_png, s_mime_webp, s_mime_jpg, s_mime_tiff, BMP_MIME_LIST });
+		if (winpr_image_format_is_supported(WINPR_IMAGE_WEBP))
+			values.push_back(s_mime_webp);
+
+		if (winpr_image_format_is_supported(WINPR_IMAGE_PNG))
+			values.push_back(s_mime_png);
+
+		if (winpr_image_format_is_supported(WINPR_IMAGE_JPEG))
+			values.push_back(s_mime_jpg);
+
+		auto bmp = std::vector<const char*>({ s_mime_tiff, BMP_MIME_LIST });
+		values.insert(values.end(), bmp.begin(), bmp.end());
 	}
 	return values;
 }
@@ -108,10 +119,7 @@ static bool operator<(const CLIPRDR_FORMAT& lhs, const CLIPRDR_FORMAT& rhs)
 {
 	return (lhs.formatId < rhs.formatId);
 }
-static bool operator>(const CLIPRDR_FORMAT& lhs, const CLIPRDR_FORMAT& rhs)
-{
-	return (lhs.formatId > rhs.formatId);
-}
+
 static bool operator==(const CLIPRDR_FORMAT& lhs, const CLIPRDR_FORMAT& rhs)
 {
 	return (lhs.formatId == rhs.formatId);
@@ -159,7 +167,19 @@ BOOL sdlClip::uninit(CliprdrClientContext* clip)
 bool sdlClip::handle_update(const SDL_ClipboardEvent& ev)
 {
 	if (!_ctx || !_sync || ev.owner)
+	{
+		/* TODO: Hack to identify our own updates */
+		if (ev.owner && (ev.reserved == 0x42))
+		{
+			_cache_data.clear();
+			auto rc =
+			    SDL_SetClipboardData(sdlClip::ClipDataCb, sdlClip::ClipCleanCb, this, ev.mime_types,
+			                         WINPR_ASSERTING_INT_CAST(size_t, ev.num_mime_types));
+			_current_mimetypes.clear();
+			return rc;
+		}
 		return true;
+	}
 
 	clearServerFormats();
 
@@ -176,11 +196,7 @@ bool sdlClip::handle_update(const SDL_ClipboardEvent& ev)
 	std::vector<std::string> clientFormatNames;
 	std::vector<CLIPRDR_FORMAT> clientFormats;
 
-#if SDL_VERSION_ATLEAST(3, 1, 8)
 	size_t nformats = WINPR_ASSERTING_INT_CAST(size_t, ev.num_mime_types);
-#else
-	size_t nformats = WINPR_ASSERTING_INT_CAST(size_t, ev.n_mime_types);
-#endif
 	const char** clipboard_mime_formats = ev.mime_types;
 
 	WLog_Print(_log, WLOG_TRACE, "SDL has %d formats", nformats);
@@ -190,8 +206,8 @@ bool sdlClip::handle_update(const SDL_ClipboardEvent& ev)
 
 	for (size_t i = 0; i < nformats; i++)
 	{
-		std::string local_mime = clipboard_mime_formats[i];
-		WLog_Print(_log, WLOG_TRACE, " - %s", local_mime.c_str());
+		auto local_mime = clipboard_mime_formats[i];
+		WLog_Print(_log, WLOG_TRACE, " - %s", local_mime);
 
 		if (std::find(s_mime_text().begin(), s_mime_text().end(), local_mime) !=
 		    s_mime_text().end())
@@ -208,7 +224,10 @@ bool sdlClip::handle_update(const SDL_ClipboardEvent& ev)
 		else if (local_mime == mime_html)
 			/* html */
 			clientFormatNames.emplace_back(s_type_HtmlFormat);
-		else if (std::find(mime_bitmap.begin(), mime_bitmap.end(), local_mime) != mime_bitmap.end())
+		else if ((std::find(mime_bitmap.begin(), mime_bitmap.end(), local_mime) !=
+		          mime_bitmap.end()) ||
+		         (std::find(mime_images.begin(), mime_images.end(), local_mime) !=
+		          mime_images.end()))
 		{
 			/* image formats */
 			if (!imgPushed)
@@ -273,8 +292,7 @@ UINT sdlClip::MonitorReady(CliprdrClientContext* context, const CLIPRDR_MONITOR_
 		return ret;
 
 	clipboard->_sync = true;
-	SDL_ClipboardEvent ev = { SDL_EVENT_CLIPBOARD_UPDATE, 0, 0, false, 0, nullptr };
-	if (!clipboard->handle_update(ev))
+	if (!sdl_push_user_event(SDL_EVENT_CLIPBOARD_UPDATE))
 		return ERROR_INTERNAL_ERROR;
 
 	return CHANNEL_RC_OK;
@@ -298,6 +316,7 @@ UINT sdlClip::SendClientCapabilities()
 void sdlClip::clearServerFormats()
 {
 	_serverFormats.clear();
+	_cache_data.clear();
 	cliprdr_file_context_clear(_file);
 }
 
@@ -475,33 +494,43 @@ UINT sdlClip::ReceiveServerFormatList(CliprdrClientContext* context,
 		}
 	}
 
-	std::vector<const char*> mimetypes;
+	clipboard->_current_mimetypes.clear();
 	if (text)
 	{
-		mimetypes.insert(mimetypes.end(), s_mime_text().begin(), s_mime_text().end());
+		clipboard->_current_mimetypes.insert(clipboard->_current_mimetypes.end(),
+		                                     s_mime_text().begin(), s_mime_text().end());
 	}
 	if (image)
 	{
-		mimetypes.insert(mimetypes.end(), s_mime_bitmap().begin(), s_mime_bitmap().end());
-		mimetypes.insert(mimetypes.end(), s_mime_image().begin(), s_mime_image().end());
+		clipboard->_current_mimetypes.insert(clipboard->_current_mimetypes.end(),
+		                                     s_mime_bitmap().begin(), s_mime_bitmap().end());
+		clipboard->_current_mimetypes.insert(clipboard->_current_mimetypes.end(),
+		                                     s_mime_image().begin(), s_mime_image().end());
 	}
 	if (html)
 	{
-		mimetypes.push_back(s_mime_html);
+		clipboard->_current_mimetypes.push_back(s_mime_html);
 	}
 	if (file)
 	{
-		mimetypes.push_back(s_mime_uri_list);
-		mimetypes.push_back(s_mime_gnome_copied_files);
-		mimetypes.push_back(s_mime_mate_copied_files);
+		clipboard->_current_mimetypes.push_back(s_mime_uri_list);
+		clipboard->_current_mimetypes.push_back(s_mime_gnome_copied_files);
+		clipboard->_current_mimetypes.push_back(s_mime_mate_copied_files);
 	}
 
-	const bool rc = SDL_SetClipboardData(sdlClip::ClipDataCb, sdlClip::ClipCleanCb, clipboard,
-	                                     mimetypes.data(), mimetypes.size());
+	auto s = clipboard->_current_mimetypes.size();
+	SDL_Event ev = { SDL_EVENT_CLIPBOARD_UPDATE };
+	ev.clipboard.owner = true;
+	ev.clipboard.num_mime_types = WINPR_ASSERTING_INT_CAST(Sint32, s);
+	ev.clipboard.mime_types = clipboard->_current_mimetypes.data();
+
+	/* TODO: Hack to identify our own updates */
+	ev.clipboard.reserved = 0x42;
+	auto rc = (SDL_PushEvent(&ev) == 1);
 	return clipboard->SendFormatListResponse(rc);
 }
 
-UINT sdlClip::ReceiveFormatListResponse(CliprdrClientContext* context,
+UINT sdlClip::ReceiveFormatListResponse(WINPR_ATTR_UNUSED CliprdrClientContext* context,
                                         const CLIPRDR_FORMAT_LIST_RESPONSE* formatListResponse)
 {
 	WINPR_ASSERT(context);
@@ -547,6 +576,7 @@ std::shared_ptr<BYTE> sdlClip::ReceiveFormatDataRequestHandle(
 		case CF_DIB:
 		case CF_DIBV5:
 			mime = s_mime_bitmap()[0];
+			localFormatId = ClipboardGetFormatId(clipboard->_system, mime);
 			break;
 
 		case CF_TIFF:
@@ -733,6 +763,8 @@ const void* sdlClip::ClipDataCb(void* userdata, const char* mime_type, size_t* s
 	{
 		ClipboardLockGuard give_me_a_name(clip->_system);
 		std::lock_guard<CriticalSection> lock(clip->_lock);
+
+		/* check if we already used this mime type */
 		auto cache = clip->_cache_data.find(mime_type);
 		if (cache != clip->_cache_data.end())
 		{
@@ -740,23 +772,34 @@ const void* sdlClip::ClipDataCb(void* userdata, const char* mime_type, size_t* s
 			return cache->second.ptr.get();
 		}
 
-		uint32_t formatID = clip->serverIdForMime(mime_type);
+		auto formatID = clip->serverIdForMime(mime_type);
+
+		/* Can we convert the data from existing formats in the clibpard? */
+		uint32_t fsize = 0;
+		auto mimeFormatID = ClipboardRegisterFormat(clip->_system, mime_type);
+		auto fptr = ClipboardGetData(clip->_system, mimeFormatID, &fsize);
+		if (fptr)
+		{
+			auto ptr = std::shared_ptr<void>(fptr, free);
+			clip->_cache_data.insert({ mime_type, { fsize, ptr } });
+
+			auto fcache = clip->_cache_data.find(mime_type);
+			if (fcache != clip->_cache_data.end())
+			{
+				*size = fcache->second.size;
+				return fcache->second.ptr.get();
+			}
+		}
+
+		WLog_Print(clip->_log, WLOG_INFO, "requesting format %s [0x%08" PRIx32 "]", mime_type,
+		           formatID);
 		if (clip->SendDataRequest(formatID, mime_type))
 			return nullptr;
 	}
-
 	{
 		HANDLE hdl[2] = { freerdp_abort_event(clip->_sdl->context()), clip->_event };
 
-		// Unlock the sdl->critical lock or we'll deadlock with the FreeRDP thread
-		// when it pushes events (like end_paint).
-		// we can safely do that here as we're called from the SDL thread
-		SdlContext* sdl = clip->_sdl;
-		sdl->critical.unlock();
-
 		DWORD status = WaitForMultipleObjects(ARRAYSIZE(hdl), hdl, FALSE, 10 * 1000);
-
-		sdl->critical.lock();
 
 		if (status != WAIT_OBJECT_0 + 1)
 		{
@@ -807,7 +850,6 @@ void sdlClip::ClipCleanCb(void* userdata)
 	ClipboardLockGuard give_me_a_name(clip->_system);
 	std::lock_guard<CriticalSection> lock(clip->_lock);
 	ClipboardEmpty(clip->_system);
-	clip->_cache_data.clear();
 }
 
 bool sdlClip::mime_is_file(const std::string& mime)
@@ -836,6 +878,18 @@ bool sdlClip::mime_is_text(const std::string& mime)
 bool sdlClip::mime_is_image(const std::string& mime)
 {
 	for (const auto& imime : s_mime_image())
+	{
+		assert(imime != nullptr);
+		if (mime == imime)
+			return true;
+	}
+
+	return false;
+}
+
+bool sdlClip::mime_is_bmp(const std::string& mime)
+{
+	for (const auto& imime : s_mime_bitmap())
 	{
 		assert(imime != nullptr);
 		if (mime == imime)

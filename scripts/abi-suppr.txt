@@ -32,3 +32,24 @@ name = smartcard_irp_device_control_call
 [suppress_function]
 change_kind = function-subtype-change
 name = freerdp_passphrase_read
+
+# freerdp_settings_get_uint32 subtype change (delete MonitorLocalShift[XY]
+[suppress_function]
+change_kind = function-subtype-change
+name = freerdp_settings_get_uint32
+
+# freerdp_settings_set_uint32 subtype change (delete MonitorLocalShift[XY]
+[suppress_function]
+change_kind = function-subtype-change
+name = freerdp_settings_set_uint32
+
+# gdi_graphics_pipeline_init_ex subtype change (__uint32 to uint32_t)
+[suppress_function]
+change_kind = function-subtype-change
+name = gdi_graphics_pipeline_init_ex
+
+# msusb_msconfig_dump did use MSUSB_CONFIG_DESCRIPTOR* instead of const MSUSB_CONFIG_DESCRIPTOR*
+[suppress_function]
+change_kind = function-subtype-change
+name = msusb_msconfig_dump
+

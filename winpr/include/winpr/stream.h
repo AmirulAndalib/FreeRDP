@@ -1275,12 +1275,12 @@ extern "C"
 #define Stream_GetPointerAs(_s, _p) _p = Stream_PointerAs(_s, __typeof(_p))
 
 #if defined(WITH_WINPR_DEPRECATED)
-	WINPR_API WINPR_DEPRECATED_VAR("Use Stream_SetPosition instead",
-	                               BOOL Stream_SetPointer(wStream* _s, BYTE* _p));
-	WINPR_API WINPR_DEPRECATED_VAR("Use Stream_New(buffer, capacity) instead",
-	                               BOOL Stream_SetBuffer(wStream* _s, BYTE* _b));
-	WINPR_API WINPR_DEPRECATED_VAR("Use Stream_New(buffer, capacity) instead",
-	                               void Stream_SetCapacity(wStream* _s, size_t capacity));
+	WINPR_DEPRECATED_VAR("Use Stream_SetPosition instead",
+	                     WINPR_API BOOL Stream_SetPointer(wStream* _s, BYTE* _p));
+	WINPR_DEPRECATED_VAR("Use Stream_New(buffer, capacity) instead",
+	                     WINPR_API BOOL Stream_SetBuffer(wStream* _s, BYTE* _b));
+	WINPR_DEPRECATED_VAR("Use Stream_New(buffer, capacity) instead",
+	                     WINPR_API void Stream_SetCapacity(wStream* _s, size_t capacity));
 #endif
 
 	static INLINE size_t Stream_Length(const wStream* _s)
@@ -1368,7 +1368,20 @@ extern "C"
 
 	WINPR_API void StreamPool_Return(wStreamPool* pool, wStream* s);
 
+	/** @brief increment reference count of stream
+	 *
+	 *  @param s The stream to reference
+	 *  @bug versions < 3.13.0 did only handle streams returned by StreamPool_Take
+	 */
 	WINPR_API void Stream_AddRef(wStream* s);
+
+	/** @brief Release a reference to a stream.
+	 *  If the reference count reaches \b 0 it is returned to the StreamPool it was taken from or \b
+	 * Stream_Free is called.
+	 *
+	 *  @param s The stream to release
+	 *  @bug versions < 3.13.0 did only handle streams returned by StreamPool_Take
+	 */
 	WINPR_API void Stream_Release(wStream* s);
 
 	WINPR_ATTR_MALLOC(Stream_Release, 1)

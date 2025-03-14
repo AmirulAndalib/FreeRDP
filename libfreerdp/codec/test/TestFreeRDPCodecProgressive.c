@@ -1176,7 +1176,7 @@ static void free_cmd(RDPGFX_SURFACE_COMMAND* cmd)
 	free(cmd->data);
 }
 
-static WINPR_NORETURN(void usage(const char* name))
+WINPR_NORETURN(static void usage(const char* name))
 {
 	FILE* fp = stdout;
 	(void)fprintf(fp, "%s <directory> <width> <height>\n", name);
@@ -1386,7 +1386,7 @@ static int test_dump(int argc, char* argv[])
 				const RECTANGLE_16* rects = region16_rects(&invalid, &nbRects);
 				for (size_t x = 0; x < nbRects; x++)
 				{
-					RECTANGLE_16* rect = &rects[x];
+					const RECTANGLE_16* rect = &rects[x];
 					const UINT32 w = rect->right - rect->left;
 					const UINT32 h = rect->bottom - rect->top;
 					if (!freerdp_image_copy_no_overlap(output, DstFormat, stride, rect->left,

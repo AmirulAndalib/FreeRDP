@@ -154,8 +154,7 @@ static BOOL rdp_set_monitor_layout_pdu_state_(rdpRdp* rdp, BOOL value, const cha
 		if (WLog_IsLevelActive(rdp->log, log_level))
 		{
 			WLog_PrintMessage(rdp->log, WLOG_MESSAGE_TEXT, log_level, line, file, fkt,
-			                  "rdp->monitor_layout_pdu == %s, expected FALSE",
-			                  value ? "TRUE" : "FALSE");
+			                  "rdp->monitor_layout_pdu == TRUE, expected FALSE");
 		}
 		return FALSE;
 	}
@@ -644,7 +643,8 @@ BOOL rdp_read_header(rdpRdp* rdp, wStream* s, UINT16* length, UINT16* channelId)
 	if (!per_read_integer16(s, channelId, 0)) /* channelId */
 		return FALSE;
 
-	const uint8_t byte = Stream_Get_UINT8(s); /* dataPriority + Segmentation (0x70) */
+	const uint8_t dataPriority = Stream_Get_UINT8(s); /* dataPriority + Segmentation (0x70) */
+	WLog_Print(rdp->log, WLOG_TRACE, "dataPriority=%" PRIu8, dataPriority);
 
 	if (!per_read_length(s, length)) /* userData (OCTET_STRING) */
 		return FALSE;
@@ -973,7 +973,8 @@ fail:
 	return rc;
 }
 
-static BOOL rdp_recv_server_shutdown_denied_pdu(rdpRdp* rdp, wStream* s)
+static BOOL rdp_recv_server_shutdown_denied_pdu(WINPR_ATTR_UNUSED rdpRdp* rdp,
+                                                WINPR_ATTR_UNUSED wStream* s)
 {
 	return TRUE;
 }
@@ -991,27 +992,37 @@ static BOOL rdp_recv_server_set_keyboard_indicators_pdu(rdpRdp* rdp, wStream* s)
 		return FALSE;
 
 	const uint16_t unitId = Stream_Get_UINT16(s); /* unitId (2 bytes) */
+	if (unitId != 0)
+	{
+		WLog_Print(rdp->log, WLOG_WARN,
+		           "[MS-RDPBCGR] 2.2.8.2.1.1 Set Keyboard Indicators PDU Data "
+		           "(TS_SET_KEYBOARD_INDICATORS_PDU)::unitId should be 0, is %" PRIu8,
+		           unitId);
+	}
 	const UINT16 ledFlags = Stream_Get_UINT16(s); /* ledFlags (2 bytes) */
 	return IFCALLRESULT(TRUE, context->update->SetKeyboardIndicators, context, ledFlags);
 }
 
 static BOOL rdp_recv_server_set_keyboard_ime_status_pdu(rdpRdp* rdp, wStream* s)
 {
-	UINT16 unitId = 0;
-	UINT32 imeState = 0;
-	UINT32 imeConvMode = 0;
-
 	if (!rdp || !rdp->input)
 		return FALSE;
 
 	if (!Stream_CheckAndLogRequiredLengthWLog(rdp->log, s, 10))
 		return FALSE;
 
-	Stream_Read_UINT16(s, unitId);      /* unitId (2 bytes) */
-	Stream_Read_UINT32(s, imeState);    /* imeState (4 bytes) */
-	Stream_Read_UINT32(s, imeConvMode); /* imeConvMode (4 bytes) */
-	IFCALL(rdp->update->SetKeyboardImeStatus, rdp->context, unitId, imeState, imeConvMode);
-	return TRUE;
+	const uint16_t unitId = Stream_Get_UINT16(s); /* unitId (2 bytes) */
+	if (unitId != 0)
+	{
+		WLog_Print(rdp->log, WLOG_WARN,
+		           "[MS-RDPBCGR] 2.2.8.2.2.1 Set Keyboard IME Status PDU Data "
+		           "(TS_SET_KEYBOARD_IME_STATUS_PDU)::unitId should be 0, is %" PRIu8,
+		           unitId);
+	}
+	const uint32_t imeState = Stream_Get_UINT32(s);    /* imeState (4 bytes) */
+	const uint32_t imeConvMode = Stream_Get_UINT32(s); /* imeConvMode (4 bytes) */
+	return IFCALLRESULT(TRUE, rdp->update->SetKeyboardImeStatus, rdp->context, unitId, imeState,
+	                    imeConvMode);
 }
 
 static BOOL rdp_recv_set_error_info_data_pdu(rdpRdp* rdp, wStream* s)
@@ -1634,9 +1645,7 @@ static state_run_t rdp_recv_tpkt_pdu(rdpRdp* rdp, wStream* s)
 	if (rdp->mcs->messageChannelId && (channelId == rdp->mcs->messageChannelId))
 	{
 		rdp->inPackets++;
-		if (!rdp_handle_message_channel(rdp, s, channelId, length))
-			return STATE_RUN_FAILED;
-		return STATE_RUN_SUCCESS;
+		return rdp_handle_message_channel(rdp, s, channelId, length);
 	}
 
 	if (rdp->settings->UseRdpSecurityLayer)
@@ -1851,7 +1860,8 @@ static state_run_t rdp_client_exchange_monitor_layout(rdpRdp* rdp, wStream* s)
 	return status;
 }
 
-static state_run_t rdp_recv_callback_int(rdpTransport* transport, wStream* s, void* extra)
+static state_run_t rdp_recv_callback_int(WINPR_ATTR_UNUSED rdpTransport* transport, wStream* s,
+                                         void* extra)
 {
 	state_run_t status = STATE_RUN_SUCCESS;
 	rdpRdp* rdp = (rdpRdp*)extra;
@@ -2797,7 +2807,7 @@ static BOOL parse_on_off_option(const char* value)
 
 #define STR(x) #x
 
-static BOOL option_is_runtime_checks(wLog* log, const char* tok)
+static BOOL option_is_runtime_checks(WINPR_ATTR_UNUSED wLog* log, const char* tok)
 {
 	const char* experimental[] = { STR(WITH_VERBOSE_WINPR_ASSERT) };
 	for (size_t x = 0; x < ARRAYSIZE(experimental); x++)
@@ -2811,7 +2821,7 @@ static BOOL option_is_runtime_checks(wLog* log, const char* tok)
 	return FALSE;
 }
 
-static BOOL option_is_experimental(wLog* log, const char* tok)
+static BOOL option_is_experimental(WINPR_ATTR_UNUSED wLog* log, const char* tok)
 {
 	const char* experimental[] = { STR(WITH_DSP_EXPERIMENTAL), STR(WITH_VAAPI) };
 	for (size_t x = 0; x < ARRAYSIZE(experimental); x++)

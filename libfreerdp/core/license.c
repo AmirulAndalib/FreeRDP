@@ -45,10 +45,10 @@
 
 #define TAG FREERDP_TAG("core.license")
 
-#if 0
-#define LICENSE_NULL_CLIENT_RANDOM 1
-#define LICENSE_NULL_PREMASTER_SECRET 1
-#endif
+// #define LICENSE_NULL_CLIENT_RANDOM 1
+// #define LICENSE_NULL_PREMASTER_SECRET 1
+
+// #define WITH_LICENSE_DECRYPT_CHALLENGE_RESPONSE
 
 #define PLATFORM_CHALLENGE_RESPONSE_VERSION 0x0100
 
@@ -65,12 +65,13 @@ enum LicenseRequestType
 	ERROR_ALERT = 0xFF
 };
 
-// #define LICENSE_PKT_CS_MASK \
-//	(LICENSE_INFO | NEW_LICENSE_REQUEST | PLATFORM_CHALLENGE_RESPONSE | ERROR_ALERT)
-//#define LICENSE_PKT_SC_MASK \
-//	(LICENSE_REQUEST | PLATFORM_CHALLENGE | NEW_LICENSE | UPGRADE_LICENSE | ERROR_ALERT)
-//#define LICENSE_PKT_MASK (LICENSE_PKT_CS_MASK | LICENSE_PKT_SC_MASK)
-
+/*
+#define LICENSE_PKT_CS_MASK \
+    (LICENSE_INFO | NEW_LICENSE_REQUEST | PLATFORM_CHALLENGE_RESPONSE | ERROR_ALERT)
+#define LICENSE_PKT_SC_MASK \
+    (LICENSE_REQUEST | PLATFORM_CHALLENGE | NEW_LICENSE | UPGRADE_LICENSE | ERROR_ALERT)
+#define LICENSE_PKT_MASK (LICENSE_PKT_CS_MASK | LICENSE_PKT_SC_MASK)
+*/
 #define LICENSE_PREAMBLE_LENGTH 4
 
 /* Cryptographic Lengths */
@@ -202,6 +203,7 @@ struct rdp_license
 	LICENSE_BLOB* ClientUserName;
 	LICENSE_BLOB* ClientMachineName;
 	LICENSE_BLOB* PlatformChallenge;
+	LICENSE_BLOB* PlatformChallengeResponse;
 	LICENSE_BLOB* EncryptedPremasterSecret;
 	LICENSE_BLOB* EncryptedPlatformChallenge;
 	LICENSE_BLOB* EncryptedPlatformChallengeResponse;
@@ -330,12 +332,11 @@ static BOOL license_read_new_license_request_packet(rdpLicense* license, wStream
 static BOOL license_answer_license_request(rdpLicense* license);
 
 static BOOL license_send_platform_challenge_response(rdpLicense* license);
-static BOOL license_read_platform_challenge_response(rdpLicense* license, wStream* s);
+static BOOL license_read_platform_challenge_response(rdpLicense* license);
 
 static BOOL license_read_client_platform_challenge_response(rdpLicense* license, wStream* s);
 static BOOL license_write_client_platform_challenge_response(rdpLicense* license, wStream* s);
 
-static BOOL license_read_server_upgrade_license(rdpLicense* license, wStream* s);
 static BOOL license_write_server_upgrade_license(const rdpLicense* license, wStream* s);
 
 static BOOL license_send_license_info(rdpLicense* license, const LICENSE_BLOB* calBlob,
@@ -799,19 +800,6 @@ static BOOL license_send(rdpLicense* license, wStream* s, BYTE type)
 	const BOOL ret = rdp_send(rdp, s, MCS_GLOBAL_CHANNEL_ID);
 	rdp->sec_flags = 0;
 	return ret;
-}
-
-BOOL license_read_server_upgrade_license(rdpLicense* license, wStream* s)
-{
-	WINPR_ASSERT(license);
-
-	if (!license_read_binary_blob(s, license->EncryptedLicenseInfo))
-		return FALSE;
-	if (!license_check_stream_length(s, sizeof(license->MACData),
-	                                 "SERVER_UPGRADE_LICENSE::MACData"))
-		return FALSE;
-	Stream_Read(s, license->MACData, sizeof(license->MACData));
-	return TRUE;
 }
 
 BOOL license_write_server_upgrade_license(const rdpLicense* license, wStream* s)
@@ -1962,7 +1950,6 @@ fail:
 BOOL license_read_platform_challenge_packet(rdpLicense* license, wStream* s)
 {
 	BYTE macData[LICENSING_ENCRYPTION_KEY_LENGTH] = { 0 };
-	UINT32 ConnectFlags = 0;
 
 	WINPR_ASSERT(license);
 
@@ -1971,7 +1958,9 @@ BOOL license_read_platform_challenge_packet(rdpLicense* license, wStream* s)
 	if (!license_check_stream_length(s, 4, "license platform challenge"))
 		return FALSE;
 
-	Stream_Read_UINT32(s, ConnectFlags); /* ConnectFlags, Reserved (4 bytes) */
+	/* [MS-RDPELE] 2.2.2.4 Server Platform Challenge (SERVER_PLATFORM_CHALLENGE)
+	 * reserved field */
+	Stream_Seek_UINT32(s); /* ConnectFlags, Reserved (4 bytes) */
 
 	/* EncryptedPlatformChallenge */
 	license->EncryptedPlatformChallenge->type = BB_ANY_BLOB;
@@ -1990,7 +1979,6 @@ BOOL license_read_platform_challenge_packet(rdpLicense* license, wStream* s)
 		return FALSE;
 
 #ifdef WITH_DEBUG_LICENSE
-	WLog_DBG(TAG, "ConnectFlags: 0x%08" PRIX32 "", ConnectFlags);
 	WLog_DBG(TAG, "EncryptedPlatformChallenge:");
 	winpr_HexDump(TAG, WLOG_DEBUG, license->EncryptedPlatformChallenge->data,
 	              license->EncryptedPlatformChallenge->length);
@@ -2565,12 +2553,8 @@ BOOL license_send_platform_challenge_response(rdpLicense* license)
 	return FALSE;
 }
 
-BOOL license_read_platform_challenge_response(rdpLicense* license, wStream* s)
+BOOL license_read_platform_challenge_response(WINPR_ATTR_UNUSED rdpLicense* license)
 {
-	UINT16 wVersion = 0;
-	UINT16 cbChallenge = 0;
-	const BYTE* pbChallenge = NULL;
-
 	WINPR_ASSERT(license);
 	WINPR_ASSERT(license->PlatformChallenge);
 	WINPR_ASSERT(license->MacSaltKey);
@@ -2579,8 +2563,24 @@ BOOL license_read_platform_challenge_response(rdpLicense* license, wStream* s)
 
 	DEBUG_LICENSE("Receiving Platform Challenge Response Packet");
 
-	if (!license_check_stream_length(s, 8, "PLATFORM_CHALLENGE_RESPONSE_DATA"))
+#if defined(WITH_LICENSE_DECRYPT_CHALLENGE_RESPONSE)
+	BOOL rc = FALSE;
+	LICENSE_BLOB* dblob = license_new_binary_blob(BB_ANY_BLOB);
+	if (!dblob)
 		return FALSE;
+
+	wStream sbuffer = { 0 };
+	UINT16 wVersion = 0;
+	UINT16 cbChallenge = 0;
+	const BYTE* pbChallenge = NULL;
+	LICENSE_BLOB* blob = license->EncryptedPlatformChallengeResponse;
+
+	if (!license_rc4_with_licenseKey(license, blob->data, blob->length, dblob))
+		goto fail;
+
+	wStream* s = Stream_StaticConstInit(&sbuffer, dblob->data, dblob->length);
+	if (!license_check_stream_length(s, 8, "PLATFORM_CHALLENGE_RESPONSE_DATA"))
+		goto fail;
 
 	Stream_Read_UINT16(s, wVersion);
 	if (wVersion != PLATFORM_CHALLENGE_RESPONSE_VERSION)
@@ -2589,7 +2589,7 @@ BOOL license_read_platform_challenge_response(rdpLicense* license, wStream* s)
 		          "Invalid PLATFORM_CHALLENGE_RESPONSE_DATA::wVersion 0x%04" PRIx16
 		          ", expected 0x04" PRIx16,
 		          wVersion, PLATFORM_CHALLENGE_RESPONSE_VERSION);
-		return FALSE;
+		goto fail;
 	}
 	Stream_Read_UINT16(s, license->ClientType);
 	Stream_Read_UINT16(s, license->LicenseDetailLevel);
@@ -2597,13 +2597,22 @@ BOOL license_read_platform_challenge_response(rdpLicense* license, wStream* s)
 
 	if (!license_check_stream_length(s, cbChallenge,
 	                                 "PLATFORM_CHALLENGE_RESPONSE_DATA::pbChallenge"))
-		return FALSE;
+		goto fail;
 
 	pbChallenge = Stream_Pointer(s);
-	if (!license_read_binary_blob_data(license->EncryptedPlatformChallengeResponse, BB_DATA_BLOB,
+	if (!license_read_binary_blob_data(license->PlatformChallengeResponse, BB_DATA_BLOB,
 	                                   pbChallenge, cbChallenge))
-		return FALSE;
-	return Stream_SafeSeek(s, cbChallenge);
+		goto fail;
+	if (!Stream_SafeSeek(s, cbChallenge))
+		goto fail;
+
+	rc = TRUE;
+fail:
+	license_free_binary_blob(dblob);
+	return rc;
+#else
+	return TRUE;
+#endif
 }
 
 BOOL license_write_client_platform_challenge_response(rdpLicense* license, wStream* s)
@@ -2633,7 +2642,7 @@ BOOL license_read_client_platform_challenge_response(rdpLicense* license, wStrea
 	                                 "CLIENT_PLATFORM_CHALLENGE_RESPONSE::MACData"))
 		return FALSE;
 	Stream_Read(s, license->MACData, sizeof(license->MACData));
-	return TRUE;
+	return license_read_platform_challenge_response(license);
 }
 
 /**
@@ -2697,6 +2706,8 @@ rdpLicense* license_new(rdpRdp* rdp)
 		goto out_error;
 	if (!(license->PlatformChallenge = license_new_binary_blob(BB_ANY_BLOB)))
 		goto out_error;
+	if (!(license->PlatformChallengeResponse = license_new_binary_blob(BB_ANY_BLOB)))
+		goto out_error;
 	if (!(license->EncryptedPlatformChallenge = license_new_binary_blob(BB_ANY_BLOB)))
 		goto out_error;
 	if (!(license->EncryptedPlatformChallengeResponse =
@@ -2741,6 +2752,7 @@ void license_free(rdpLicense* license)
 		license_free_binary_blob(license->ClientUserName);
 		license_free_binary_blob(license->ClientMachineName);
 		license_free_binary_blob(license->PlatformChallenge);
+		license_free_binary_blob(license->PlatformChallengeResponse);
 		license_free_binary_blob(license->EncryptedPlatformChallenge);
 		license_free_binary_blob(license->EncryptedPlatformChallengeResponse);
 		license_free_binary_blob(license->EncryptedPremasterSecret);
